@@ -7,6 +7,7 @@ The license texts are in `app/assets/www/LICENSE_MIT` and `app/assets/www/LICENS
 shown in the app (About & licences). Ruffle is not stored in this repository: `scripts/fetch-ruffle.sh`
 downloads it from npm (`@ruffle-rs/ruffle`).
 
-## The game
+## The game: Motherload
+DrillPod is an unofficial launcher for *Motherload* by XGen Studios (2004).
 No part of the game (graphics, sounds, code) is included in this repository or in the APK.
-The game and its trademarks belong to their respective owners (XGen Studios).
+Motherload and its trademarks belong to XGen Studios. This project is not affiliated with or endorsed by XGen Studios.

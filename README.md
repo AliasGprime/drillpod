@@ -1,10 +1,10 @@
 # DrillPod
 
-**Android launcher to play your own copy of a classic Flash mining game — with a gamepad, touch controls, and on two screens.**
+**Unofficial Android launcher dedicated to *Motherload* (XGen Studios, 2004) — play your own copy with a gamepad, touch controls, and on two screens.**
 
-DrillPod runs a Flash game file (`.swf`) with the open-source [Ruffle](https://ruffle.rs) emulator and adapts it to today's devices: Android handhelds (designed for the dual-screen **AYN Thor**), phones and tablets.
+DrillPod is built specifically for **Motherload**, the classic Flash mining game by XGen Studios. It runs the game with the open-source [Ruffle](https://ruffle.rs) emulator and adapts it to today's devices: Android handhelds (designed for the dual-screen **AYN Thor**), phones and tablets. Every feature — button-to-button menu navigation, the second-screen dashboard, local saves — is tailored to Motherload's screens, shops and save system; DrillPod is not a general-purpose Flash player.
 
-> **The app contains no part of the game** (no graphics, sounds or code). Every player provides their own copy of the file, verified by its MD5 fingerprint. See [Legal](#legal).
+> **Unofficial fan project, not affiliated with or endorsed by XGen Studios.** The app contains no part of the game (no graphics, sounds or code): every player provides their own copy of Motherload (`8khsgfbehb.swf`), verified by its MD5 fingerprint. See [Legal](#legal).
 
 *Résumé en français à la [fin de cette page](#français).*
 
@@ -28,8 +28,8 @@ DrillPod runs a Flash game file (`.swf`) with the open-source [Ruffle](https://r
 
 ### Launcher
 - Start menu fully usable **with a gamepad** or by touch.
-- **Two ways to get the game**: direct download from the publisher's official website, or import of a file already on the device.
-- **MD5 check** of the file (`42469867aa46129edbab37894c344cb4`): any other file is rejected.
+- **Two ways to get Motherload**: direct download from XGen Studios' official website, or import of a file already on the device.
+- **MD5 check** of the file (`42469867aa46129edbab37894c344cb4`): only this exact version of Motherload is accepted; any other file is rejected.
 - **English / French** interface (automatic from the Android language, or chosen manually).
 - Adaptive layout, tested from 640×360 to 1920×1080 points, landscape and portrait.
 
@@ -201,7 +201,7 @@ The code of this project is under the [MIT license](LICENSE). It covers neither 
 
 ## Français
 
-**DrillPod** est un lanceur Android qui fait tourner **votre propre copie** d'un classique Flash de forage minier (`8khsgfbehb.swf`, MD5 `42469867aa46129edbab37894c344cb4`) avec [Ruffle](https://ruffle.rs). **Il ne contient aucun élément du jeu** : le fichier est téléchargé depuis le site officiel de l'éditeur ou importé depuis l'appareil, vérifié, puis préparé sur l'appareil.
+**DrillPod** est un lanceur Android non officiel conçu spécifiquement pour **Motherload** (XGen Studios, 2004). Il fait tourner **votre propre copie** du jeu (`8khsgfbehb.swf`, MD5 `42469867aa46129edbab37894c344cb4`) avec [Ruffle](https://ruffle.rs) ; toutes ses fonctions (menus à la manette, tableau de bord du 2e écran, sauvegardes locales) sont adaptées à Motherload, ce n'est pas un lecteur Flash généraliste. **Il ne contient aucun élément du jeu** : le fichier est téléchargé depuis le site officiel d'XGen Studios ou importé depuis l'appareil, vérifié, puis préparé sur l'appareil. Projet de fan, ni affilié ni approuvé par XGen Studios.
 
 Points forts :
 - **Manette** entièrement réattribuable ; dans chaque menu du jeu, le curseur se place tout seul sur le bouton le plus utile puis saute **de bouton en bouton** ; B = retour / fermer.
