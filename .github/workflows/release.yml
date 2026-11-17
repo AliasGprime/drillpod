@@ -1,0 +1,96 @@
+# Builds, signs and publishes DrillPod on GitHub Releases.
+#
+# Runs when a push to main changes the app version (app/AndroidManifest.xml) or the release notes,
+# or manually from the Actions tab. The version comes from android:versionName; notes from
+# release-notes/v<version>.md. Nothing happens if the release already exists.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   KEYSTORE_BASE64  the signing keystore (.jks), base64-encoded
+#   KEYSTORE_PASS    its password (key password = keystore password)
+# Optional: KEY_ALIAS (default: drillpod)
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - app/AndroidManifest.xml
+      - release-notes/**
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      HAS_KEY: ${{ secrets.KEYSTORE_BASE64 != '' && secrets.KEYSTORE_PASS != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: v
+        run: |
+          VERSION=$(grep -oP 'android:versionName="\K[^"]+' app/AndroidManifest.xml)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release v$VERSION already exists, nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Check signing secrets
+        if: steps.v.outputs.exists == 'false' && env.HAS_KEY != 'true'
+        run: echo "::warning::KEYSTORE_BASE64 / KEYSTORE_PASS secrets are not set yet; skipping the release."
+
+      - name: Install Android build tools
+        if: steps.v.outputs.exists == 'false' && env.HAS_KEY == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq aapt apksigner zipalign dalvik-exchange android-sdk-platform-23 >/dev/null
+
+      - name: Fetch Ruffle
+        if: steps.v.outputs.exists == 'false' && env.HAS_KEY == 'true'
+        run: ./scripts/fetch-ruffle.sh
+
+      - name: Build and sign the APK
+        if: steps.v.outputs.exists == 'false' && env.HAS_KEY == 'true'
+        run: |
+          KS="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
+          KEYSTORE="$KS" ./build.sh "$RUNNER_TEMP/DrillPod.apk"
+          rm -f "$KS"
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'drillpod' }}
+
+      - name: Prepare release notes
+        if: steps.v.outputs.exists == 'false' && env.HAS_KEY == 'true'
+        run: |
+          NOTES="release-notes/${{ steps.v.outputs.tag }}.md"
+          [ -f "$NOTES" ] || { echo "::error::$NOTES is missing"; exit 1; }
+          APK="$RUNNER_TEMP/DrillPod.apk"
+          SHA=$(sha256sum "$APK" | cut -c1-64)
+          CERT=$(apksigner verify --print-certs "$APK" | grep 'SHA-256' | awk '{print $NF}')
+          { cat "$NOTES"; echo; echo "**SHA-256 (DrillPod.apk):** \`$SHA\`  "; echo "**Signing certificate SHA-256:** \`$CERT\`"; } > "$RUNNER_TEMP/notes.md"
+
+      - name: Publish the release
+        if: steps.v.outputs.exists == 'false' && env.HAS_KEY == 'true'
+        run: |
+          TITLE=$(head -1 "release-notes/${{ steps.v.outputs.tag }}.md" | sed 's/^#* *//; s/ —.*//')
+          gh release create "${{ steps.v.outputs.tag }}" "$RUNNER_TEMP/DrillPod.apk" \
+            --target "$GITHUB_SHA" --title "${TITLE:-DrillPod ${{ steps.v.outputs.version }}}" \
+            --notes-file "$RUNNER_TEMP/notes.md"
+        env:
+          GH_TOKEN: ${{ github.token }}

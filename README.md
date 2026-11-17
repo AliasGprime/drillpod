@@ -149,6 +149,16 @@ Optional variables: `ANDROID_JAR` (path to the platform-23 `android.jar`), `DX` 
 
 > An APK signed with a different key cannot be installed over a version signed with the official key (Android requires it): uninstall first.
 
+### Automated releases
+
+`.github/workflows/release.yml` builds, signs and publishes a GitHub release whenever a push to `main` changes `android:versionName` in `app/AndroidManifest.xml` (or the release notes), or when it is started manually from the **Actions** tab. To publish version `X.Y`:
+
+1. set `android:versionName="X.Y"` (and increase `android:versionCode`) in `app/AndroidManifest.xml`;
+2. write the notes in `release-notes/vX.Y.md` (first line = release title);
+3. push to `main`. The workflow adds the APK and its SHA-256 / signing-certificate fingerprints to the release.
+
+It needs two repository secrets: `KEYSTORE_BASE64` (the `.jks` keystore, base64-encoded) and `KEYSTORE_PASS` (optional: `KEY_ALIAS`, default `drillpod`). Without them the workflow skips the release.
+
 ---
 
 ## Project structure
@@ -173,6 +183,8 @@ tools/                         development tools (Python)
   swfsmooth.py / swfgfx.py     texture smoothing and bitmap analysis
 scripts/fetch-ruffle.sh        downloads Ruffle from npm
 build.sh                       build without Gradle
+release-notes/                 release notes, one file per version
+.github/workflows/release.yml  automated build + GitHub release
 ```
 
 ---
