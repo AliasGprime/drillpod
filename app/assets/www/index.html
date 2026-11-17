@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>DrillPod</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;
+    font-family:sans-serif}
+  #game{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:50% 50%}
+  #game ruffle-player{width:100%;height:100%;display:block}
+  .bar{position:absolute;top:0;bottom:0;background:#000;z-index:5;display:none;pointer-events:none}
+  #barL{left:0}#barR{right:0}
+  body.m-original .bar{display:block}
+
+  /* Virtual mouse cursor (gamepad cursor mode) */
+  #cursor{position:absolute;left:0;top:0;width:40px;height:40px;z-index:30;pointer-events:none;display:none;
+    filter:drop-shadow(0 0 3px rgba(0,0,0,.9));transition:left .07s ease-out,top .07s ease-out}
+  body.menu #cursor{display:block}
+  #cursor .bit path:first-child{transition:fill .15s}
+  #cursor.over .bit path:first-child{fill:#ffb22e}
+  #cursor.over .bit{animation:drill .35s linear infinite;transform-origin:20px 12px}
+  @keyframes drill{0%{transform:translateY(0)}50%{transform:translateY(1.2px)}100%{transform:translateY(0)}}
+  #cursor.click{transform:scale(.8)}
+
+  #badge{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:31;pointer-events:none;
+    background:rgba(255,190,40,.92);color:#000;font-weight:bold;font-size:13px;padding:3px 10px;border-radius:10px;display:none}
+  body.menu #badge{display:block}
+
+  #toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:40;pointer-events:none;
+    background:rgba(0,0,0,.8);color:#fff;border:1px solid rgba(255,255,255,.35);font-size:16px;padding:8px 16px;
+    border-radius:10px;opacity:0;transition:opacity .25s}
+  #toast.show{opacity:1}
+  #typing{position:absolute;left:50%;top:40px;transform:translateX(-50%);z-index:41;pointer-events:none;display:none;
+    background:#111;color:#9fe870;border:2px solid #9fe870;font:bold 20px monospace;padding:6px 14px;border-radius:8px}
+
+  #help{position:absolute;inset:0;z-index:50;background:rgba(0,0,0,.88);color:#eee;display:none;
+    align-items:center;justify-content:center}
+  body.help #help{display:flex}
+  #help .box{max-width:920px;width:92%;max-height:94%;overflow:auto;font-size:14px}
+  #help h2{margin:0 0 8px;color:#ffc838;font-size:20px}
+  #help .cols{display:flex;gap:28px;flex-wrap:wrap}
+  #help .cols>div{flex:1;min-width:260px}
+  #help h3{color:#9fe870;font-size:15px;margin:10px 0 4px}
+  #help table{border-collapse:collapse;width:100%}
+  #help td{padding:2px 6px;vertical-align:top}
+  #help td:first-child{white-space:nowrap;color:#ffc838;font-weight:bold;width:1%}
+  #help .foot{margin-top:10px;color:#aaa;font-size:12px}
+
+  .pad{position:absolute;z-index:10;touch-action:none}
+  #touch{inset:0;pointer-events:none}
+  #touch>*{pointer-events:auto}
+  .btn{position:absolute;display:flex;align-items:center;justify-content:center;
+    border-radius:50%;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.45);
+    color:rgba(255,255,255,.9);font:bold 18px sans-serif;box-sizing:border-box}
+  .btn.on{background:rgba(255,200,60,.55)}
+  .tool{position:absolute;top:8px;z-index:11;width:38px;height:38px;font-size:15px}
+  /* tool buttons at the top centre (the corners belong to the touch shoulder buttons) */
+  #helpbtn{left:calc(50% - 63px)}#screen{left:calc(50% - 19px)}#toggle{left:calc(50% + 25px)}
+  body.hide .pad,body.hide #screen,body.hide #helpbtn{display:none !important}
+  body.hide #toggle{opacity:.3}
+</style>
+</head>
+<body class="m-original">
+<div id="game"></div>
+<div id="barL" class="bar"></div><div id="barR" class="bar"></div>
+
+<svg id="cursor" viewBox="0 0 40 40">
+  <!-- small drilling pod; the drill tip (top-left) is the hot spot -->
+  <g class="pod" transform="rotate(-45 20 20)">
+    <rect x="13" y="20" width="14" height="13" rx="3.5" fill="#5d6873" stroke="#111" stroke-width="1.6"/>
+    <rect x="15" y="23" width="10" height="4" rx="1.5" fill="#9fd8ff" stroke="#111" stroke-width="1"/>
+    <rect x="11.5" y="31" width="17" height="5" rx="2.5" fill="#2b2f33" stroke="#111" stroke-width="1.4"/>
+    <g class="bit"><path d="M12 21 L20 1 L28 21 Z" fill="#d7dde3" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M14.5 16 L25.5 12 M15.8 11.5 L24.2 8.6 M17.3 7 L22.7 5.2" stroke="#7d8790" stroke-width="1.5"/></g>
+  </g>
+</svg>
+<div id="badge">A : cliquer · B : retour / fermer</div>
+<div id="toast"></div>
+<div id="typing"></div>
+
+<div id="help"><div class="box" id="helpBox"></div></div>
+
+<div id="touch" class="pad"></div>
+<div class="btn tool" id="toggle" title="Boutons tactiles">🎮</div>
+<div class="btn tool" id="screen" title="Mode d'affichage">⛶</div>
+<div class="btn tool" id="helpbtn" title="Aide">?</div>
+
+<script>
+  // Remember which renderer Ruffle picked (shown in the help screen diagnostics).
+  (function(){ const ol = console.log; console.log = function(){ try { const m = String(arguments[0]).match(/Used renderer: ([\w-]+)/); if (m) window.__renderer = m[1]; } catch(e){} return ol.apply(console, arguments); }; })();
+  // Settings chosen in the launcher (same storage).
+  window.SET = (function(){ const g = (k, d) => { try { const v = localStorage.getItem("ml." + k); return v === null ? d : v; } catch (e) { return d; } };
+    return {quality: g("quality", "high"), volume: +g("volume", "100") / 100, touchMode: g("touchMode", "auto"), second: g("second", "1") === "1",
+            stick: g("stick", "normal"), cursorSpeed: +g("cursorSpeed", "1") || 1, 
+            autoLogin: g("autoLogin", "1") === "1", hq: g("hq", "0") === "1", vibrate: g("vibrate", "1") === "1"}; })();
+  window.RufflePlayer = window.RufflePlayer || {};
+  window.RufflePlayer.config = {
+    autoplay: "on", unmuteOverlay: "hidden", splashScreen: false,
+    letterbox: "off",                       // off-stage area is masked (or not) by our own layout
+    scale: "showAll", forceScale: true,     // the game may ask for "no scale": keep our display modes working
+    contextMenu: "off", showSwfDownload: false, publicPath: "./", polyfills: false,
+    warnOnUnsupportedContent: false, quality: SET.hq ? "best" : SET.quality, backgroundColor: "#000000",
+    openUrlMode: "deny", allowNetworking: "all", allowScriptAccess: true, logLevel: "warn",
+    preferredRenderer: "webgl"
+  };
+</script>
+<script>
+  /* The newer game version saves through XGen Studios' web server (long gone): it POSTs to
+     its own save.php / restore.php addresses. Answer those requests right here and
+     keep the saved games on this device (one save per username). */
+  (function(){
+    const realFetch = window.fetch.bind(window);
+    const KEY = "ml.cloudsave.";
+    const reply = obj => new Response(Object.keys(obj).map(k => k + "=" + encodeURIComponent(obj[k])).join("&"),
+      {status: 200, headers: {"Content-Type": "application/x-www-form-urlencoded"}});
+    async function bodyOf(input, init){
+      try {
+        if (typeof Request !== "undefined" && input instanceof Request) return await input.clone().text();
+        const b = init && init.body;
+        if (b == null) return "";
+        if (typeof b === "string") return b;
+        if (b instanceof URLSearchParams) return b.toString();
+        if (b instanceof Blob) return await b.text();
+        return new TextDecoder().decode(b instanceof ArrayBuffer ? new Uint8Array(b) : b);
+      } catch (e) { return ""; }
+    }
+    window.fetch = async function(input, init){
+      const url = typeof input === "string" ? input : (input && input.url) || String(input);
+      const m = /\/motherload\/(save|restore)\.php/.exec(url);
+      if (!m) return realFetch(input, init);
+      const q = new URLSearchParams(await bodyOf(input, init) || (url.split("?")[1] || ""));
+      // Saves stay on this device. Name and password are ignored: loading always brings back
+      // the most recent save (the login boxes are filled in automatically anyway).
+      const user = (q.get("username") || "joueur").trim().toLowerCase() || "joueur";
+      if (m[1] === "save") {
+        const data = q.get("playerdata") || "";
+        if (!data) return reply({result: "Nothing to save."});
+        try {
+          const rec = JSON.stringify({u: user, d: data, t: Date.now()});
+          localStorage.setItem(KEY + user, rec);
+          localStorage.setItem(KEY + "__last", rec);
+        } catch (e) { return reply({result: "Could not store the save on this device."}); }
+        window.__lastSaveOk = Date.now();
+        return reply({result: "success"});
+      }
+      let rec = null;
+      try {
+        rec = JSON.parse(localStorage.getItem(KEY + "__last") || "null");
+        if (!rec) for (const k of Object.keys(localStorage)) if (k.startsWith(KEY)) {
+          const r = JSON.parse(localStorage.getItem(k)); if (!rec || r.t > rec.t) rec = r; }
+      } catch (e) {}
+      if (!rec || !rec.d) return reply({result: "No saved game on this device yet. Save with the Quantum Bot first."});
+      return reply({result: "success", playerdata: rec.d});
+    };
+  })();
+</script>
+<script src="common.js"></script>
+<script src="ruffle.js"></script>
+<script>
+"use strict";
+const SW = 550, SH = 400;                       // Flash stage size of the game
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try { const v = localStorage.getItem("ml." + k); return v === null ? d : v; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem("ml." + k, v); } catch(e){} }
+};
+const NATIVE = window.AndroidPad || null;       // input injection provided by the Android app
+
+const player = window.RufflePlayer.newest().createPlayer();
+$("game").appendChild(player);
+const rapi = player.ruffle ? player.ruffle() : player;
+rapi.load({url: window.__swfUrl || (SET.hq ? "game_hq.swf" : "game.swf")});
+try { rapi.volume = SET.volume; } catch (e) {}
+if (NATIVE && NATIVE.page) NATIVE.page("game");
+if (NATIVE && NATIVE.setSecond) NATIVE.setSecond(SET.second);
+/* The game files were given tiny hooks: fscommand("ml", "frame:<screen>") when a screen opens
+   and fscommand("ml", "fn:<name>") when a dialog function runs. */
+window.__sigs = [];
+rapi.addFSCommandHandler((cmd, arg) => {
+  if (cmd !== "ml") return false;
+  window.__sigs.push(arg);
+  try { onGameSignal(String(arg)); } catch (e) { console.warn(e); }
+  return true;
+});
+const canvas = () => player.shadowRoot && player.shadowRoot.querySelector("canvas");
+
+/* Ruffle opens Android's keyboard through a hidden text input. Only allow it right after
+   you click (A) on a text field (login / username boxes); block it everywhere else. */
+let lastCursorClick = -1e9, typing = false;
+function tameKeyboard(){
+  const vk = player.shadowRoot && player.shadowRoot.getElementById("virtual-keyboard");
+  if (!vk || vk.dataset.tamed) return !!vk;
+  vk.dataset.tamed = "1";
+  const lock = () => { vk.setAttribute("inputmode", "none"); vk.setAttribute("readonly", ""); };
+  lock();
+  vk.addEventListener("focus", () => {
+    if (NATIVE && NATIVE.keyboard && performance.now() - lastCursorClick < 2500) {
+      typing = true; vk.removeAttribute("readonly"); vk.setAttribute("inputmode", "text");
+      NATIVE.keyboard(true); showTyping("");
+      return;
+    }
+    vk.blur(); const c = player.shadowRoot.getElementById("container"); c && c.focus({preventScroll:true});
+  });
+  vk.addEventListener("blur", () => { if (typing) { typing = false; lock(); NATIVE.keyboard(false); hideTyping(); } });
+  // Mirror what is typed (the keyboard may cover the game's text box).
+  vk.addEventListener("beforeinput", e => { if (!typing) return;
+    if (e.inputType === "deleteContentBackward") showTyping(typedText.slice(0, -1));
+    else if (e.data) showTyping(typedText + e.data); });
+  return true;
+}
+let typedText = "";
+function showTyping(t){ typedText = t; const el = $("typing"); el.textContent = ML.t("g.typing") + t + "▌"; el.style.display = "block"; }
+function hideTyping(){ $("typing").style.display = "none"; typedText = ""; }
+(function waitVk(){ if (!tameKeyboard()) setTimeout(waitVk, 200); })();
+
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.h); toast.h = setTimeout(()=>t.classList.remove("show"), 1600);
+}
+
+/* ================= Game screens -> cursor placement ================= */
+/* Button positions, measured on a 960x540 stretched screen and converted to stage pixels. */
+/* Every clickable button of every game screen, in game-stage pixels (550 x 400). Measured by
+   scanning each screen for the zones where the game shows its "hand" cursor; a few controls
+   that show no hand (option checkboxes, login boxes) were added from screenshots. */
+const SCREENS = {
+  hud:               {btns: {INV: [462, 26], OPTIONS: [503, 42], HELP: [530, 14]}, def: "INV"},
+  titleFrame:        {btns: {NEW: [123, 209], LOAD: [123, 235], INSTR: [123, 260]}, def: () => hasSave() ? "LOAD" : "NEW"},
+  instructions:      {btns: {X: [512, 42]}, def: "X", back: "X"},
+  transmissionFrame: {btns: {X: [357, 102]}, def: "X", back: "X"},
+  fuelFrame:         {btns: {F5: [325, 127], F10: [440, 127], F25: [325, 217], F50: [440, 217], FILL: [382, 305], X: [500, 27]}, def: "FILL", back: "X"},
+  fuelOK:            {btns: {OK: [275, 227]}, def: "OK", back: "OK"},
+  sellFrame:         {btns: {SELL: [275, 337], X: [497, 25]}, def: "SELL", back: "X"},
+  sellOK:            {btns: {OK: [290, 262]}, def: "OK", back: "OK"},
+  repairFrame:       {btns: {I1: [97, 122], I2: [157, 122], I3: [217, 122], I4: [97, 182], I5: [157, 182], I6: [217, 182],
+                             BUY: [157, 367], R50: [330, 205], R100: [445, 207], R200: [330, 275], R500: [445, 275],
+                             TOTAL: [390, 342], X: [500, 27]}, def: "TOTAL", back: "X"},
+  repairOK:          {btns: {OK: [280, 237]}, def: "OK", back: "OK"},
+  upgradeFrame:      {btns: {T1: [72, 77], T2: [102, 77], T3: [127, 77], T4: [152, 77], T5: [177, 77], T6: [207, 77], EXIT: [232, 77],
+                             U1: [260, 202], U2: [347, 202], U3: [437, 202], U4: [260, 290], U5: [347, 290], U6: [437, 290],
+                             BUY: [128, 346], X: [500, 27]}, def: "T1", back: "X"},
+  upgradeOK:         {btns: {OK: [275, 211]}, def: "OK", back: "OK"},
+  inventoryFrame:    {btns: {X: [497, 27]}, def: "X", back: "X"},      // + one row per mineral carried (see refreshInventory)
+  helpFrame:         {btns: {X: [507, 37]}, def: "X", back: "X"},
+  options:           {btns: {X: [507, 37], EXHAUST: [119, 284], CHUNKS: [119, 316], SUNMOON: [119, 345], MOUSE: [367, 255],
+                             QUIT: [365, 347], OK: [480, 347]}, def: "OK", back: "OK"},
+  saveFrame:         {btns: {YES: [220, 287], NO: [332, 287]}, def: "YES", back: "NO"},
+  deathFrame:        {btns: {CONT: [273, 255], QUIT: [273, 300]}, def: "CONT"},
+  loadLogin:         {btns: {USER: [292, 259], PASS: [292, 284], CONT: [183, 341], CANCEL: [344, 341]}, def: "CONT", back: "CANCEL", user: "USER", pass: "PASS"},
+  saveLogin:         {btns: {USER: [321, 219], PASS: [321, 244], CONT: [244, 286], CANCEL: [367, 286]}, def: "CONT", back: "CANCEL", user: "USER", pass: "PASS"},
+  saveDone:          {btns: {CONT: [277, 242]}, def: "CONT", back: "CONT"}
+};
+let ctx = null, ctxStack = [], posMemo = null, gameScreen = "", lastSaveGame = 0;
+/* Inventory: each mineral line you carry can be clicked to jettison one unit. */
+const INV_ROWS = [80, 105, 132, 160, 185, 210, 236, 261, 287, 312];
+function refreshInventory(){
+  const b = {X: [497, 27]}, cargo = (hud.last && hud.last.cargo) || [];
+  INV_ROWS.forEach((y, i) => { if (cargo[i] > 0) b["M" + i] = [330, y]; });
+  SCREENS.inventoryFrame.btns = b;
+}
+/* Show the cursor again. If a game screen / popup is still open (the cursor was only hidden
+   with B), go back to it; the HUD buttons are offered only while really driving. */
+function cursorBack(){
+  const open = ctx && ctx !== "hud" && SCREENS[ctx] ? ctx
+             : (gameScreen && gameScreen !== "mainFrame" && SCREENS[gameScreen] ? gameScreen : null);
+  if (open) {
+    const keep = ctx === open && nearAnyButton();
+    ctx = open; if (!menuMode) setMenu(true, true);
+    if (!keep) placeOn(typeof SCREENS[open].def === "function" ? SCREENS[open].def() : SCREENS[open].def, 0);
+    else hoverDirty = true;
+  } else enter("hud", 0);
+}
+function hasSave(){ try { return Object.keys(localStorage).some(k => k.startsWith("ml.cloudsave.")); } catch (e) { return false; } }
+function stageToScreen(p){ const st = stageRect(), u = units(); return [st.x + p[0] * u.x, st.y + p[1] * u.y]; }
+function screenToStage(x, y){ const st = stageRect(), u = units(); return [(x - st.x) / u.x, (y - st.y) / u.y]; }
+function placeOn(name, delay){
+  setTimeout(() => {
+    const sc = ctx && SCREENS[ctx]; if (!sc || !sc.btns[name]) return;
+    const q = stageToScreen(sc.btns[name]); moveCursor(q[0], q[1]);
+  }, delay || 0);
+}
+function enter(name, delay){
+  ctx = name;
+  nav.lock = true;                  // a stick / d-pad still held from driving must be released first
+  if (name === "inventoryFrame") refreshInventory();
+  const sc = SCREENS[name];
+  if (!menuMode) setMenu(true, true); else menuAuto = true;
+  if (sc && sc.def) placeOn(typeof sc.def === "function" ? sc.def() : sc.def, delay == null ? 150 : delay);
+}
+function pushPopup(name){ ctxStack.push(ctx); posMemo = [cur.x, cur.y]; enter(name, 60); }
+function popPopup(then){
+  if (!ctxStack.length) return;
+  ctx = ctxStack.pop();
+  if (then) placeOn(then, 60);
+  else if (posMemo) { const m = posMemo; setTimeout(() => moveCursor(m[0], m[1]), 60); }
+}
+/* Fill the login boxes by itself (saves are local: any name works) and point at CONTINUE. */
+let autoTries = 0, autoCheck = null;
+function autofill(retry){
+  const sc = SCREENS[ctx]; if (!sc || !sc.user) return;
+  const name = ctx;
+  autoTries = retry ? autoTries + 1 : 1;
+  lastCursorClick = -1e9;                          // never open Android's keyboard for this
+  if (typing) { const vk = player.shadowRoot.getElementById("virtual-keyboard"); vk && vk.blur(); }
+  const tapAt = p => { const q = stageToScreen(p);
+    if (NATIVE) NATIVE.tap(q[0] / innerWidth, q[1] / innerHeight);
+    else { synth("pointerenter", q[0], q[1]); synth("pointermove", q[0], q[1]); synth("pointerdown", q[0], q[1]); setTimeout(() => synth("pointerup", q[0], q[1]), 40); } };
+  const typeIn = (field, text, t0) => {
+    setTimeout(() => { if (ctx === name) tapAt(sc.btns[field]); }, t0);
+    [...text].forEach((ch, i) => setTimeout(() => { if (ctx === name) tapKey(ch); }, t0 + 90 + i * 45));
+  };
+  typeIn(sc.user, "moi", 0);
+  typeIn(sc.pass, "123", 300);
+  const pressContinue = (n) => {                     // then press CONTINUE by itself
+    if (ctx !== name) return;
+    const q = stageToScreen(sc.btns[sc.def]); moveCursor(q[0], q[1]); flushHover();
+    const c = autoCheck = {name, at: performance.now()};
+    setTimeout(() => tapAt(sc.btns[sc.def]), 60);
+    // no reaction from the game (click lost)? press again
+    setTimeout(() => { if (autoCheck === c && !c.seen && n < 4) pressContinue(n + 1); }, 450);
+  };
+  setTimeout(() => pressContinue(1), 700);
+}
+/* If the game refused the login (a key got lost), fill it again. */
+function checkLogin(okFn){
+  const c = autoCheck; if (!c) return;
+  c.seen = true;
+  setTimeout(() => {
+    if (autoCheck !== c) return;
+    autoCheck = null;
+    if (!c.ok && ctx === c.name && autoTries < 4) autofill(true);
+  }, 300);
+}
+/* ================= Live game data (for the second screen) ================= */
+const hud = {n: 0, last: null, sentAt: 0, sentJson: ""};
+function onHud(str){
+  const f = str.split("|"); hud.n++;
+  const num = v => { const x = parseFloat(v); return isFinite(x) ? x : 0; };
+  hud.last = {
+    cash: num(f[0]), fuel: num(f[1]), fuelCap: num(f[2]), hp: num(f[3]), hpMax: num(f[4]), depth: num(f[5]),
+    baySize: num(f[6]), bayFree: num(f[7]), mass: num(f[8]),
+    cargo: (f[9] || "").split(",").map(num), items: (f[10] || "").split(",").map(num),
+    gear: {drill: f[11], hull: f[12], engine: f[13], tank: f[14], radiator: f[15], bay: f[16]},
+    score: num(f[17]), screen: gameScreen
+  };
+  pushSecond();
+  if (ctx === "inventoryFrame") {                      // a jettisoned mineral line may disappear
+    const before = Object.keys(SCREENS.inventoryFrame.btns).join();
+    refreshInventory();
+    if (Object.keys(SCREENS.inventoryFrame.btns).join() !== before && !nearAnyButton()) placeOn("X", 0);
+  }
+}
+function nearAnyButton(){
+  const q = screenToStage(cur.x, cur.y);
+  return btnList().some(([, b]) => Math.abs(b[0] - q[0]) < 8 && Math.abs(b[1] - q[1]) < 8);
+}
+function pushSecond(force){
+  if (!hud.last) return;
+  const now = performance.now();
+  if (!force && now - hud.sentAt < 250) { clearTimeout(hud.t); hud.t = setTimeout(() => pushSecond(true), 260); return; }
+  const json = JSON.stringify(Object.assign({}, hud.last, {screen: gameScreen}));
+  if (json === hud.sentJson) return;
+  hud.sentAt = now; hud.sentJson = json;
+  if (NATIVE && NATIVE.second) NATIVE.second(json);
+  window.__second && window.__second(json);       // browser preview / tests
+}
+function onGameSignal(sig){
+  if (sig.startsWith("hud:")) { onHud(sig.slice(4)); return; }
+  if (sig.startsWith("frame:")) {
+    gameScreen = sig.slice(6); ctxStack = [];
+    if (gameScreen === "mainFrame") { ctx = null; if (menuMode && menuAuto) setMenu(false); else releaseAll(); return; }
+    enter(gameScreen, gameScreen === "transmissionFrame" ? 900 : 200);
+    return;
+  }
+  const fn = sig.slice(3);
+  switch (fn) {
+    case "showFuelDialogue":    pushPopup("fuelOK"); break;
+    case "buyFuelDone":         popPopup(); break;
+    case "showSellDialogue":    pushPopup("sellOK"); break;
+    case "sellDone":            popPopup("X"); break;
+    case "showRepairDialogue":  if (ctx !== "repairOK") pushPopup("repairOK"); break;
+    case "hideRepairDialogue":  if (ctx === "repairOK") popPopup(); break;
+    case "showUpgradeDialogue": if (ctx !== "upgradeOK") pushPopup("upgradeOK"); break;
+    case "hideUpgradeDialogue": if (ctx === "upgradeOK") popPopup(); break;
+    case "beginSave":           // YES at the save bot: direct save if already signed in, else login boxes
+      lastSaveGame = 0;
+      setTimeout(() => { if (!lastSaveGame) { enter("saveLogin", 0); if (SET.autoLogin) autofill(); } }, 150); break;
+    case "saveGame":            lastSaveGame = performance.now(); if (autoCheck) autoCheck.ok = true;
+      setTimeout(() => {                                // "Game Saved Successfully!" -> CONTINUE by itself
+        enter("saveDone", 0);
+        if (Date.now() - (window.__lastSaveOk || 0) < 3000) { toast(ML.t("g.saved")); setTimeout(() => { if (ctx === "saveDone") { click(); } }, 700); }
+      }, 900); break;
+    case "preSaveGame": case "preLoadGame": checkLogin(); break;
+    case "initializeOptions":   enter("options", 150); break;
+    case "loadGame":            if (autoCheck) autoCheck.ok = true; break;
+    case "cancelLoadGame":      enter("titleFrame", 100); break;
+  }
+}
+/* Our own clicks tell us when a login screen opens (it has no hook of its own). */
+function afterClick(){
+  const sc = ctx && SCREENS[ctx]; if (!sc) return;
+  const near = name => { const b = sc.btns[name]; if (!b) return false; const q = screenToStage(cur.x, cur.y); return Math.abs(q[0] - b[0]) < 70 && Math.abs(q[1] - b[1]) < 14; };
+  if (ctx === "titleFrame" && near("INSTR")) setTimeout(() => enter("instructions", 0), 400);
+  else if (ctx === "instructions" && near("X")) setTimeout(() => enter("titleFrame", 0), 400);
+  else if (ctx === "hud" && near("HELP")) { /* helpFrame signal follows */ }
+  else if (ctx === "titleFrame" && near("LOAD")) setTimeout(() => { enter("loadLogin", 0); if (SET.autoLogin) autofill(); }, 300);
+  else if (ctx === "saveDone") ctx = null;
+}
+/* D-pad in a known screen: jump to the nearest button in that direction. */
+function btnList(){ const sc = ctx && SCREENS[ctx]; if (!sc) return [];
+  const v = typeof sc.btns === "function" ? sc.btns() : sc.btns; return Object.keys(v).map(k => [k, v[k]]); }
+/* Jump to the nearest button in a direction; wrap around when there is none. */
+function jump(dx, dy){
+  const list = btnList(); if (!list.length) return false;
+  const here = screenToStage(cur.x, cur.y);
+  let best = null, bestScore = 1e9;
+  for (const cone of [3.2, 8]) {             // strict cone first, then a much wider one
+    for (const [, b] of list) {
+      const vx = b[0] - here[0], vy = b[1] - here[1];
+      const along = vx * dx + vy * dy, side = Math.abs(vx * dy - vy * dx);
+      if (along < 6 || side > along * cone + 12) continue;
+      const score = along + side * 2.2;
+      if (score < bestScore) { bestScore = score; best = b; }
+    }
+    if (best) break;
+  }
+  if (!best) {                               // wrap: farthest button on the other side, same row/column first
+    for (const [, b] of list) {
+      const vx = b[0] - here[0], vy = b[1] - here[1];
+      const along = -(vx * dx + vy * dy), side = Math.abs(vx * dy - vy * dx);
+      if (along < 6) continue;
+      const score = side * 3 - along;
+      if (score < bestScore) { bestScore = score; best = b; }
+    }
+  }
+  if (!best) return false;
+  const q = stageToScreen(best); moveCursor(q[0], q[1]); return true;
+}
+
+/* ================= Display modes ================= */
+const MODES = [["original", "Original 4:3"], ["etire", "Plein écran étiré 16:9"], ["elargi", "Élargi (plus de décor)"]];
+let mode = store.get("mode", "etire");
+if (!MODES.some(m => m[0] === mode)) mode = "etire";
+
+function layout(){
+  const W = innerWidth, H = innerHeight, g = $("game");
+  const sw = Math.min(W, H * SW / SH);
+  document.body.classList.remove("m-original", "m-etire", "m-elargi");
+  document.body.classList.add("m-" + mode);
+  /* The game is drawn in a box k times larger than needed, then scaled down (k = 1, or 1.5 in
+     high-quality mode = supersampling). In stretched mode the box is as wide as the screen and
+     taller than it, then squeezed vertically: the picture is computed at full width instead of
+     being computed narrower and stretched (which blurred it). */
+  const k = SET.hq ? 1.5 : 1;
+  g.style.left = "0px"; g.style.top = "0px"; g.style.transformOrigin = "0 0";
+  if (mode === "etire" && W > sw + 1) {
+    const hh = W * SH / SW;
+    g.style.width = (W * k) + "px"; g.style.height = (hh * k) + "px";
+    g.style.transform = `scale(${1 / k}, ${H / (hh * k)})`;
+  } else {
+    g.style.width = (W * k) + "px"; g.style.height = (H * k) + "px";
+    g.style.transform = k === 1 ? "none" : `scale(${1 / k})`;
+  }
+  $("barL").style.width = $("barR").style.width = Math.ceil(Math.max(0, (W - sw) / 2)) + "px";
+  clampCursor(); drawCursor();
+}
+function cycleMode(){
+  const i = MODES.findIndex(m => m[0] === mode);
+  mode = MODES[(i + 1) % MODES.length][0];
+  store.set("mode", mode); layout();
+  toast(ML.t("g.display") + ML.t("g.mode." + mode));
+}
+addEventListener("resize", layout);
+
+function stageRect(){
+  const r = $("game").getBoundingClientRect();
+  if (mode === "etire") return {x:r.left, y:r.top, w:r.width, h:r.height};
+  const s = Math.min(r.width / SW, r.height / SH);
+  return {x: r.left + (r.width - SW * s) / 2, y: r.top + (r.height - SH * s) / 2, w: SW * s, h: SH * s};
+}
+function roamRect(){ return mode === "original" ? stageRect() : {x:0, y:0, w:innerWidth, h:innerHeight}; }
+function units(){ const st = stageRect(); return {x: st.w / SW, y: st.h / SH}; }
+
+/* ================= Keyboard injection ================= */
+const CODES = {Backspace:["Backspace",8], End:["End",35], Tab:["Tab",9], ArrowUp:["ArrowUp",38], ArrowDown:["ArrowDown",40], ArrowLeft:["ArrowLeft",37], ArrowRight:["ArrowRight",39],
+               " ":["Space",32], Escape:["Escape",27], Enter:["Enter",13]};
+function sendKey(type, key){
+  const c = CODES[key] || ["Key" + key.toUpperCase(), key.toUpperCase().charCodeAt(0)];
+  const ev = new KeyboardEvent(type, {key, code:c[0], bubbles:true, cancelable:true, composed:true});
+  Object.defineProperty(ev, "keyCode", {get:()=>c[1]});
+  Object.defineProperty(ev, "which", {get:()=>c[1]});
+  const a = document.activeElement;
+  (a && a !== document.body && player.contains(a) ? a : player).dispatchEvent(ev);
+}
+const keyHeld = new Set();
+function keyDown(k){ if (!keyHeld.has(k)) { keyHeld.add(k); sendKey("keydown", k); } }
+function keyUp(k){ if (keyHeld.has(k)) { keyHeld.delete(k); sendKey("keyup", k); } }
+function tapKey(k){ keyDown(k); setTimeout(()=>keyUp(k), 90); }
+/* The game can miss a key release while it is busy opening or closing a screen, and then
+   believes the key is still held (the pod keeps driving). So around every screen change we
+   release everything, several times. Extra releases are harmless. */
+const ALL_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "f", "r", "x", "c", "q", "m", "i", "p"];
+function releaseAll(){
+  const run = () => { for (const k of ALL_KEYS) if (!keyHeld.has(k)) sendKey("keyup", k); };
+  for (const k of [...keyHeld]) keyUp(k);
+  run(); setTimeout(run, 120); setTimeout(run, 400); setTimeout(run, 900);
+}
+
+/* ================= Virtual mouse =================
+   On Android the app injects REAL input events (a mouse hover to move, a finger tap to
+   click), exactly like a physical mouse or your finger. In a desktop browser (tests) we
+   fall back to synthetic DOM events. No scanning, no probing: one event per movement. */
+const cur = {x: innerWidth / 2, y: innerHeight / 2, over:false};
+let hoverDirty = false;
+function synth(type, x, y){
+  const cv = canvas(); if (!cv) return;
+  cv.dispatchEvent(new PointerEvent(type, {clientX:x, clientY:y, bubbles:true, cancelable:true, composed:true,
+    pointerId:1, pointerType:"mouse", isPrimary:true, button:0, buttons: type === "pointerdown" ? 1 : 0}));
+}
+function clampCursor(){
+  const r = roamRect();
+  cur.x = Math.max(r.x + 1, Math.min(r.x + r.w - 2, cur.x));
+  cur.y = Math.max(r.y + 1, Math.min(r.y + r.h - 2, cur.y));
+}
+function drawCursor(){
+  const c = $("cursor");
+  c.style.left = (cur.x - 7) + "px";
+  c.style.top  = (cur.y - 7) + "px";
+  c.classList.toggle("over", cur.over);
+}
+function moveCursor(x, y){ cur.x = x; cur.y = y; clampCursor(); drawCursor(); hoverDirty = true; }
+function flushHover(){
+  if (!hoverDirty) return;
+  hoverDirty = false;
+  if (NATIVE) NATIVE.hover(cur.x / innerWidth, cur.y / innerHeight);
+  else { synth("pointerenter", cur.x, cur.y); synth("pointermove", cur.x, cur.y); }
+}
+function click(){
+  flushHover();
+  const c = $("cursor"); c.classList.add("click"); setTimeout(() => c.classList.remove("click"), 120);
+  lastCursorClick = performance.now();
+  // The click is a real touch at the cursor: let it pass through the touch controls to the game.
+  const tc = $("touch"); tc.style.visibility = "hidden"; clearTimeout(click.t);
+  click.t = setTimeout(() => { tc.style.visibility = ""; }, 260);
+  if (NATIVE) NATIVE.tap(cur.x / innerWidth, cur.y / innerHeight);
+  else { synth("pointerenter", cur.x, cur.y); synth("pointermove", cur.x, cur.y); synth("pointerdown", cur.x, cur.y); setTimeout(() => synth("pointerup", cur.x, cur.y), 60); }
+  afterClick();
+}
+function wheel(dy){
+  if (NATIVE) { NATIVE.scroll(cur.x / innerWidth, cur.y / innerHeight, dy < 0 ? 1 : -1); return; }
+  const cv = canvas(); if (!cv) return;
+  cv.dispatchEvent(new WheelEvent("wheel", {clientX:cur.x, clientY:cur.y, deltaY:dy, bubbles:true, cancelable:true, composed:true}));
+}
+/* Ruffle shows a hand over buttons; we just read it (no extra work for the game). */
+function readHover(){
+  const cv = canvas(); const over = !!cv && cv.style.cursor === "pointer";
+  if (over !== cur.over) { cur.over = over; drawCursor(); }
+}
+
+/* ================= Modes: drive / cursor ================= */
+let menuMode = false, menuAuto = false;
+function setMenu(on, auto){
+  if (on === menuMode) return;
+  menuMode = on; menuAuto = !!auto;
+  document.body.classList.toggle("menu", on);
+  releaseAll();
+  if (on) { clampCursor(); drawCursor(); hoverDirty = true; }
+}
+function setHelp(on){ document.body.classList.toggle("help", on); if (on) updateDiag(); }
+const helpOpen = () => document.body.classList.contains("help");
+function setTouch(visible){ document.body.classList.toggle("hide", !visible); store.set("touch", visible ? "1" : "0"); }
+
+/* ================= Gamepad (fed by the Android activity) ================= */
+const pad = {btn:{}, ax:[0,0,0,0,0,0,0,0]};
+const STEP = 24;                                 // cursor step (stage pixels) per d-pad press
+let usedPad = false;
+const diag = {last:"—", axes:"—", taps:0};
+const dpadHold = {t:0};
+const BIND = ML.loadBindings();
+const ACT_KEY = {}; ML.ACTIONS.forEach(a => { if (a.key) ACT_KEY[a.id] = a.key; });
+const is = (action, name) => BIND[action] === name;
+function onPadButton(name, down, fromTouch){
+  if (!usedPad && !fromTouch) {
+    usedPad = true;
+    if (SET.touchMode === "auto") setTouch(false);
+    if (store.get("hintSeen", "0") !== "1") { store.set("hintSeen", "1"); setTimeout(() => toast(BIND.cursor + " : " + ML.t("act.cursor") + " · " + BIND.help + " : " + ML.t("act.help")), 400); }
+  }
+  const was = !!pad.btn[name];
+  pad.btn[name] = down;
+  if (was === down) return;
+  if (down) diag.last = name;
+  const dir = {UP:[0,-1], DOWN:[0,1], LEFT:[-1,0], RIGHT:[1,0]}[name];
+
+  if (helpOpen()) { if (down && (is("help", name) || is("back", name) || is("click", name) || name === "B" || name === "A")) setHelp(false); else updateDiag(); return; }
+  if (down && is("help", name)) { setHelp(true); return; }
+  if (down && is("display", name)) { cycleMode(); return; }
+  if (down && is("touch", name)) { setTouch(document.body.classList.contains("hide")); store.set("touchAuto", "0"); return; }
+
+  if (menuMode) {
+    if (dir) {
+      if (down) {
+        if (knownScreen()) { jump(dir[0], dir[1]); nav.dir = name; nav.next = performance.now() + 380; }
+        else { const u = units(); moveCursor(cur.x + dir[0] * STEP * u.x, cur.y + dir[1] * STEP * u.y); }
+        dpadHold.t = performance.now();
+      }
+      return;
+    }
+    if (!down) return;
+    if (is("click", name)) { click(); diag.taps++; }
+    else if (is("back", name)) {
+      // "Back": press the screen's own close / OK / NO / CANCEL button; on the HUD, return to driving.
+      const sc = ctx && SCREENS[ctx];
+      if (sc && sc.back && sc.btns[sc.back]) { const q = stageToScreen(sc.btns[sc.back]); moveCursor(q[0], q[1]); click(); }
+      else { if (ctx === "hud") ctx = null; setMenu(false); }
+    }
+    else if (is("scrollUp", name)) wheel(-120);
+    else if (is("scrollDown", name)) wheel(120);
+    else if (is("inventory", name)) tapKey("i");
+    return;
+  }
+  if (dir) return;                                   // driving is handled by the loop
+  if (is("cursor", name)) { if (down) cursorBack(); return; }
+  for (const id in ACT_KEY) if (is(id, name)) { down ? keyDown(ACT_KEY[id]) : keyUp(ACT_KEY[id]); }
+}
+window.GP = {
+  button: onPadButton,
+  axes(a){
+    pad.ax = a;
+    diag.axes = a.map(v => v.toFixed(2)).join(" ");
+    for (const [i, n] of [[6, "L2"], [7, "R2"]]) {     // analog triggers -> L2 / R2
+      const v = a[i], on = pad["trig" + n];
+      if (!on && v > 0.6) { pad["trig" + n] = true; onPadButton(n, true); }
+      else if (on && v < 0.3) { pad["trig" + n] = false; onPadButton(n, false); }
+    }
+    const hat = {LEFT: a[4] < -0.5, RIGHT: a[4] > 0.5, UP: a[5] < -0.5, DOWN: a[5] > 0.5};   // HAT d-pad
+    for (const n in hat) if (hat[n] !== !!pad["hat" + n]) { pad["hat" + n] = hat[n]; onPadButton(n, hat[n]); }
+    if (!usedPad && Math.hypot(a[0], a[1], a[2], a[3]) > 0.5) onPadButton("_", false);
+    if (helpOpen()) updateDiag();
+  }
+};
+function updateDiag(){
+  const d = $("diag"); if (!d) return;
+  const en = ML.lang() === "en", yn = v => v ? (en ? "yes" : "oui") : (en ? "no" : "non");
+  d.textContent = (en ? "Diagnostics — last button: " : "Diagnostic — dernier bouton : ") + diag.last +
+    (en ? " · axes: " : " · axes : ") + diag.axes + (en ? " · renderer: " : " · rendu : ") + (window.__renderer || "?") +
+    (en ? " · native input: " : " · entrée native : ") + yn(NATIVE) +
+    (en ? " · mode: " : " · mode : ") + (menuMode ? (en ? "cursor" : "curseur") : (en ? "driving" : "pilotage")) +
+    (en ? " · clicks: " : " · clics : ") + diag.taps + (en ? " · hand on button: " : " · main sur bouton : ") + yn(cur.over);
+}
+
+/* Left stick -> arrow keys, by angle rather than per axis: a push "to the right but a bit
+   high" stays RIGHT. Diagonals need a clearly diagonal push (a 20° band around 45°),
+   and the current direction is kept until the stick clearly leaves it (hysteresis). */
+const stick = {dir: null};
+function stickDirs(x, y){
+  const mag = Math.hypot(x, y);
+  const th = SET.stick === "low" ? 0.68 : SET.stick === "high" ? 0.35 : 0.5;
+  const on = stick.dir ? mag > th - 0.18 : mag > th;
+  if (!on) { stick.dir = null; return {}; }
+  const ang = (Math.atan2(-y, x) * 180 / Math.PI + 360) % 360;      // 0 = right, 90 = up
+  const SECT = {R: 0, UR: 45, U: 90, UL: 135, L: 180, DL: 225, D: 270, DR: 315};
+  const half = d => d.length === 2 ? 10 : 35;                          // diagonal ±10°, straight ±35°
+  const diff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+  if (!(stick.dir && diff(ang, SECT[stick.dir]) <= half(stick.dir) + 8)) {
+    stick.dir = null;
+    for (const d in SECT) if (diff(ang, SECT[d]) <= half(d)) { stick.dir = d; break; }
+    if (!stick.dir) { let best = 1e9; for (const d of ["R", "U", "L", "D"]) { const v = diff(ang, SECT[d]); if (v < best) { best = v; stick.dir = d; } } }
+  }
+  const d = stick.dir;
+  return {right: d.includes("R"), left: d.includes("L"), up: d.includes("U"), down: d.includes("D")};
+}
+const nav = {dir: null, next: 0};
+const DIRV = {UP: [0, -1], DOWN: [0, 1], LEFT: [-1, 0], RIGHT: [1, 0]};
+function knownScreen(){ const sc = ctx && SCREENS[ctx]; return !!(sc && Object.keys(sc.btns).length); }
+function dz(v, d){ const s = Math.sign(v), m = Math.abs(v); return m < d ? 0 : s * ((m - d) / (1 - d)); }
+let lastT = performance.now();
+function loop(t){
+  const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
+  // real sticks + the touch joysticks (whichever is pushed further)
+  const a = pad.ax.slice(), b = pad.btn;
+  if (Math.hypot(touchStick.x, touchStick.y) > Math.hypot(a[0], a[1])) { a[0] = touchStick.x; a[1] = touchStick.y; }
+  if (Math.hypot(touchRStick.x, touchRStick.y) > Math.hypot(a[2], a[3])) { a[2] = touchRStick.x; a[3] = touchRStick.y; }
+  if (!helpOpen()) {
+    const rx = dz(a[2], 0.2), ry = dz(a[3], 0.2);
+    if (!menuMode && Math.hypot(rx, ry) > 0.5) { cursorBack(); nav.dir = "stick"; }   // right stick: cursor
+    if (menuMode && knownScreen()) {
+      // Button-to-button only: d-pad (held = repeat) and both sticks act as direction keys.
+      const lx = dz(a[0], 0.2), ly = dz(a[1], 0.2);
+      const sx = Math.abs(rx) + Math.abs(ry) > Math.abs(lx) + Math.abs(ly) ? rx : lx;
+      const sy = Math.abs(rx) + Math.abs(ry) > Math.abs(lx) + Math.abs(ly) ? ry : ly;
+      let sdir = null;
+      if (Math.hypot(sx, sy) > 0.55) sdir = Math.abs(sx) > Math.abs(sy) ? (sx > 0 ? "RIGHT" : "LEFT") : (sy > 0 ? "DOWN" : "UP");
+      const pad = b.UP ? "UP" : b.DOWN ? "DOWN" : b.LEFT ? "LEFT" : b.RIGHT ? "RIGHT" : null;
+      let want = pad || sdir;
+      if (!want) nav.lock = false; else if (nav.lock) want = null;
+      if (!want) nav.dir = null;
+      else if (want !== nav.dir) { nav.dir = want; nav.next = t + 380; const v = DIRV[want]; jump(v[0], v[1]); }
+      else if (t >= nav.next) { nav.next = t + 170; const v = DIRV[want]; jump(v[0], v[1]); }
+      flushHover();
+      readHover();
+    } else if (menuMode) {
+      let vx = rx, vy = ry;
+      const lx = dz(a[0], 0.2), ly = dz(a[1], 0.2);
+      if (Math.abs(lx) + Math.abs(ly) > Math.abs(vx) + Math.abs(vy)) { vx = lx; vy = ly; }
+      const hx = (b.LEFT ? -1 : 0) + (b.RIGHT ? 1 : 0), hy = (b.UP ? -1 : 0) + (b.DOWN ? 1 : 0);
+      if ((hx || hy) && t - dpadHold.t > 300) { vx = hx * 0.75; vy = hy * 0.75; }
+      if (vx || vy) {
+        const u = units(), mag = Math.min(1, Math.hypot(vx, vy)), n = Math.hypot(vx, vy) || 1;
+        const speed = 520 * SET.cursorSpeed * mag * mag * (cur.over ? 0.5 : 1);           // stage px / s
+        moveCursor(cur.x + vx / n * speed * dt * u.x, cur.y + vy / n * speed * dt * u.y);
+      }
+      flushHover();                                   // at most one hover event per frame
+      readHover();
+    } else {
+      const st = stickDirs(a[0], a[1]);
+      const want = {
+        ArrowLeft:  !!b.LEFT  || st.left,
+        ArrowRight: !!b.RIGHT || st.right,
+        ArrowUp:    !!b.UP    || st.up,
+        ArrowDown:  !!b.DOWN  || st.down
+      };
+      for (const k in want) want[k] ? keyDown(k) : keyUp(k);
+    }
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ================= Touch controls (layout set in the launcher) ================= */
+document.head.insertAdjacentHTML("beforeend", "<style>" + ML.TOUCH_CSS + "</style>");
+const TL = ML.loadLayout();
+const touchStick = {x: 0, y: 0, id: null}, touchRStick = {x: 0, y: 0, id: null};
+const held = new Map();                       // pointerId -> touch button element
+/* D-pad arrows act while held (driving). Other buttons act when the finger is lifted: a cursor
+   click is a real touch, and Android drops it if a finger is still on the screen. */
+const isArrow = el => /^(UP|DOWN|LEFT|RIGHT)$/.test(el.dataset.btn);
+function press(el){ if (!el || el.classList.contains("on")) return; el.classList.add("on"); if (isArrow(el)) onPadButton(el.dataset.btn, true, true); }
+function release(el, cancel){
+  if (!el || !el.classList.contains("on")) return; el.classList.remove("on");
+  if (isArrow(el)) { onPadButton(el.dataset.btn, false, true); return; }
+  if (cancel) return;
+  onPadButton(el.dataset.btn, true, true);
+  setTimeout(() => onPadButton(el.dataset.btn, false, true), 90);
+}
+function stillHeld(el){ for (const v of held.values()) if (v === el) return true; return false; }
+function buzz(){ if (SET.vibrate && navigator.vibrate) navigator.vibrate(10); }
+function buildTouch(){
+  for (const el of held.values()) release(el); held.clear();
+  const els = ML.renderTouch($("touch"), TL);
+  for (const id in els) {
+    const el = els[id];
+    if (id === "stick" || id === "rstick") {
+      const st = id === "stick" ? touchStick : touchRStick, knob = el.querySelector(".tc-knob");
+      const upd = e => {
+        const r = el.getBoundingClientRect(), R = r.width / 2;
+        let dx = (e.clientX - r.left - R) / R, dy = (e.clientY - r.top - R) / R; const m = Math.hypot(dx, dy);
+        if (m > 1) { dx /= m; dy /= m; }
+        st.x = dx; st.y = dy;
+        knob.style.transform = `translate(${dx * R * 0.56}px, ${dy * R * 0.56}px)`;
+      };
+      el.addEventListener("pointerdown", e => { e.preventDefault(); el.setPointerCapture(e.pointerId); st.id = e.pointerId; upd(e); buzz(); });
+      el.addEventListener("pointermove", e => { if (e.pointerId === st.id) upd(e); });
+      const stop = e => { if (e.pointerId !== st.id) return; st.id = null; st.x = st.y = 0; knob.style.transform = ""; };
+      el.addEventListener("pointerup", stop); el.addEventListener("pointercancel", stop);
+      continue;
+    }
+    const btns = id === "dpad" ? el.querySelectorAll(".tc-b") : [el];
+    btns.forEach(b => b.addEventListener("pointerdown", e => { e.preventDefault(); held.set(e.pointerId, b); press(b); buzz(); }));
+  }
+}
+document.addEventListener("pointermove", e => {
+  if (!held.has(e.pointerId)) return;
+  const prev = held.get(e.pointerId), t = document.elementFromPoint(e.clientX, e.clientY);
+  const el = t && t.closest && t.closest(".tc-dpad .tc-b");
+  if (prev.closest(".tc-dpad") && el && el !== prev) { held.set(e.pointerId, el); if (!stillHeld(prev)) release(prev); press(el); }
+});
+function end(e){ const el = held.get(e.pointerId); if (!el) return; held.delete(e.pointerId); if (!stillHeld(el)) release(el, e.type === "pointercancel"); }
+document.addEventListener("pointerup", end);
+document.addEventListener("pointercancel", end);
+addEventListener("resize", () => buildTouch());
+// A finger tap on the game itself: the game gets the real touch; the cursor just follows it.
+$("game").addEventListener("pointerdown", e => { if (e.isTrusted && menuMode) { cur.x = e.clientX; cur.y = e.clientY; drawCursor(); } }, true);
+
+/* ================= In-game help (built from the current bindings) ================= */
+function buildHelp(){
+  const B = BIND, row = (k, v) => `<tr><td>${k || "—"}</td><td>${v}</td></tr>`;
+  const grp = g => ML.ACTIONS.filter(a => a.grp === g).map(a => row(B[a.id], ML.t("act." + a.id))).join("");
+  $("helpBox").innerHTML = `<h2>${ML.t("g.helpTitle")}</h2><div class="cols">
+    <div><h3>${ML.t("grp.drive")}</h3><table>${row(ML.t("g.helpMove"), ML.t("g.helpMoveDrive"))}${grp("drive")}</table></div>
+    <div><h3>${ML.t("grp.menu")}</h3><p style="margin:2px 0 6px;color:#ccc">${ML.t("g.helpAuto")}</p>
+      <table>${row(ML.t("g.helpMove"), ML.t("g.helpMoveMenu"))}${grp("menu")}</table>
+      <h3>${ML.t("grp.global")}</h3><table>${grp("global")}</table></div></div>
+    <div class="foot">${ML.t("g.helpFoot")}</div><div class="foot" id="diag"></div>`;
+  $("badge").textContent = `${B.click} : ${ML.t("act.click")} · ${B.back} : ${ML.t("act.back")}`;
+}
+
+$("toggle").addEventListener("click", () => { setTouch(document.body.classList.contains("hide")); store.set("touchAuto", "0"); });
+$("screen").addEventListener("click", cycleMode);
+$("helpbtn").addEventListener("click", () => setHelp(!helpOpen()));
+$("help").addEventListener("click", () => setHelp(false));
+document.addEventListener("contextmenu", e => e.preventDefault());
+
+buildTouch(); buildHelp();
+setTouch(SET.touchMode === "on" ? true : SET.touchMode === "off" ? false : store.get("touch", "1") === "1");
+layout();
+</script>
+</body>
+</html>

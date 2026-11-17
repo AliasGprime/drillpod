@@ -1,0 +1,14 @@
+# signing keys: never commit them
+*.jks
+*.keystore
+*.p12
+# build outputs
+*.apk
+*.idsig
+build/
+# Ruffle is downloaded by scripts/fetch-ruffle.sh
+app/assets/www/ruffle.js
+app/assets/www/core.ruffle.*.js
+app/assets/www/*.wasm
+# game files are never part of this project
+*.swf

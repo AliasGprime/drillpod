@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>DrillPod Launcher</title>
+<style>
+  :root{--bg:#0d1014;--panel:#161b22;--panel2:#1d242d;--line:#2a333f;--text:#e6edf3;--dim:#8b98a8;
+        --accent:#ff9f1c;--ok:#4ade80;--bad:#f87171;--focus:#ffd166;
+        --fs:clamp(12px,2.15vmin + 4px,18px);--pad:clamp(8px,2.2vmin,22px);--gap:clamp(5px,1.2vmin,10px)}
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font:var(--fs)/1.4 system-ui,"Segoe UI",Roboto,sans-serif;-webkit-user-select:none;user-select:none}
+  body{display:flex;height:100vh;height:100dvh}
+  aside{flex:none;width:clamp(190px,31vw,360px);padding:var(--pad);display:flex;flex-direction:column;gap:var(--gap);
+    border-right:1px solid var(--line);background:linear-gradient(180deg,#141922,#0d1014);overflow-y:auto;min-height:0;
+    font-size:min(var(--fs),3.15vh)}
+  main{flex:1;min-width:0;min-height:0;padding:var(--pad);overflow-y:auto;overscroll-behavior:contain;scroll-behavior:auto}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand svg{width:2.6em;height:2.6em;flex:none}
+  .brand b{font-size:1.25em}.brand small{display:block;color:var(--dim);font-size:.72em;line-height:1.2}
+  .status{border:1px solid var(--line);border-radius:10px;padding:.45em .7em;background:var(--panel);font-size:.85em}
+  .ok{color:var(--ok);font-weight:700}.bad{color:var(--bad);font-weight:700}
+  .nav{display:flex;flex-direction:column;gap:var(--gap)}
+  .btn{display:flex;align-items:center;gap:.6em;width:100%;padding:.6em .8em;border-radius:10px;border:2px solid transparent;
+    background:var(--panel);color:var(--text);font:inherit;font-weight:600;text-align:left;cursor:pointer;line-height:1.2}
+  .btn .ic{width:1.3em;text-align:center;flex:none}
+  .btn.primary{background:var(--accent);color:#1b1205}
+  .btn[disabled]{opacity:.38}
+  .btn.sel{background:var(--panel2)}
+  .focus{border-color:var(--focus)!important;box-shadow:0 0 0 3px rgba(255,209,102,.2)}
+  .hint{margin-top:auto;color:var(--dim);font-size:.72em}
+  .key{display:inline-block;min-width:1.7em;padding:0 .35em;border-radius:6px;background:#2a333f;font-weight:700;font-size:.85em;text-align:center}
+  h1{margin:0 0 .6em;font-size:1.35em}
+  h3{margin:1em 0 .35em;font-size:.95em;color:var(--accent)}
+  p{margin:.35em 0;color:#c9d3de}
+  .panel{display:none}.panel.on{display:block}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:.8em;padding:.55em .75em;margin:.35em 0;border-radius:10px;
+    background:var(--panel);border:2px solid transparent;cursor:pointer}
+  .row .lab{min-width:0}.row .lab b{display:block;font-weight:600}.row .lab small{display:block;color:var(--dim);font-size:.8em}
+  .val{display:flex;align-items:center;gap:.4em;font-weight:700;white-space:nowrap;flex:none}
+  .val .arr{color:var(--dim);font-size:.8em;padding:.1em .3em}
+  .chip{display:inline-block;min-width:3.4em;text-align:center;padding:.2em .6em;border-radius:8px;background:#2a333f;font-weight:800}
+  .chip.none{color:var(--dim);font-weight:600}
+  pre{white-space:pre-wrap;word-break:break-word;font-size:.68em;color:#b8c2cd;background:var(--panel);padding:.8em;border-radius:8px;margin:.5em 0}
+  .msg{padding:.7em .9em;border-radius:10px;margin:.6em 0;background:var(--panel);border-left:4px solid var(--accent)}
+  .msg.err{border-color:var(--bad)}.msg.good{border-color:var(--ok)}
+  code{background:#222a34;padding:0 .35em;border-radius:5px;font-size:.85em;word-break:break-all}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+  .overlay.on{display:flex}
+  .box{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:1em 1.2em;max-width:30em;width:100%;text-align:center}
+  .box .mb{display:flex;gap:var(--gap);margin-top:.8em}.box .btn{justify-content:center}
+  .big{font-size:1.6em;margin:.3em 0;color:var(--focus);font-weight:800}
+
+  /* narrow / portrait screens: menu on top, content below */
+  @media (max-aspect-ratio: 1/1), (max-width: 560px){
+    body{flex-direction:column}
+    aside{width:auto;border-right:0;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;align-items:center;overflow:visible;padding:var(--gap) var(--pad)}
+    .brand small,.hint{display:none}
+    .status{flex:1;min-width:10em}
+    .nav{flex-direction:row;overflow-x:auto;width:100%;padding-bottom:2px}
+    .nav .btn{width:auto;flex:none;white-space:nowrap}
+  }
+  @media (max-height: 420px) and (min-aspect-ratio: 1/1){
+    .brand small{display:none}.hint{display:none}
+    .btn{padding:.42em .65em}
+  }
+
+  /* touch layout editor */
+  #editor{position:fixed;inset:0;z-index:30;display:none;background:linear-gradient(#4a8fd0 0%,#8fc3ee 55%,#6b4b2e 56%,#4a321e 100%)}
+  #editor.on{display:block}
+  #edStage{position:absolute;inset:0}
+  #edStage .sel{outline:3px dashed var(--focus);outline-offset:3px}
+  #edBar{position:absolute;left:50%;top:8px;transform:translateX(-50%);display:flex;gap:6px;flex-wrap:wrap;justify-content:center;
+    background:rgba(13,16,20,.88);padding:6px;border-radius:12px;z-index:2;max-width:96vw}
+  #edBar .btn{width:auto;padding:.4em .7em;font-size:.85em}
+  #edInfo{position:absolute;left:50%;top:calc(8px + 3.2em);transform:translateX(-50%);background:rgba(13,16,20,.8);padding:4px 10px;border-radius:8px;font-size:.8em;color:#ddd;z-index:2;text-align:center}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#1d242d"/>
+      <path d="M10 46h44v8H10z" fill="#7a4b2a"/><circle cx="27" cy="33" r="13" fill="#ff9f1c"/>
+      <circle cx="27" cy="33" r="6" fill="#1d242d"/><path d="M38 27l16 6-16 6z" fill="#cfd8e3"/>
+      <rect x="17" y="44" width="22" height="5" rx="2.5" fill="#cfd8e3"/></svg>
+    <div><b>DrillPod</b><small data-t="tagline"></small></div>
+  </div>
+  <div class="status" id="status">…</div>
+  <div class="nav" id="nav">
+    <button class="btn primary" data-act="play"><span class="ic">▶</span><span data-t="play"></span></button>
+    <button class="btn" data-act="download"><span class="ic">⇩</span><span data-t="download"></span></button>
+    <button class="btn" data-act="import"><span class="ic">⇪</span><span data-t="import"></span></button>
+    <button class="btn" data-panel="settings"><span class="ic">⚙</span><span data-t="settings"></span></button>
+    <button class="btn" data-panel="controls"><span class="ic">🎮</span><span data-t="controls"></span></button>
+    <button class="btn" data-panel="touch"><span class="ic">👆</span><span data-t="touch"></span></button>
+    <button class="btn" data-panel="about"><span class="ic">ⓘ</span><span data-t="about"></span></button>
+    <button class="btn" data-act="quit"><span class="ic">⏻</span><span data-t="quit"></span></button>
+  </div>
+  <div class="hint" data-t="hint"></div>
+</aside>
+
+<main id="main">
+  <section class="panel on" id="p-home">
+    <h1 data-t="welcome"></h1>
+    <div id="homeMsg"></div>
+    <div data-t="homeText"></div>
+    <p style="color:var(--dim);font-size:.85em"><span data-t="md5"></span> <code>42469867aa46129edbab37894c344cb4</code></p>
+  </section>
+
+  <section class="panel" id="p-settings">
+    <h1 data-t="settings"></h1>
+    <div id="settings"></div>
+    <h3 data-t="saves"></h3>
+    <div class="row" data-act="clearSaves"><div class="lab"><b data-t="clearSaves"></b><small id="saveInfo"></small></div><div class="val">›</div></div>
+    <div class="row" data-act="removeGame"><div class="lab"><b data-t="removeGame"></b><small data-t="removeGameD"></small></div><div class="val">›</div></div>
+  </section>
+
+  <section class="panel" id="p-controls">
+    <h1 data-t="controls"></h1>
+    <p data-t="controlsIntro"></p>
+    <div id="binds"></div>
+    <div class="row" data-act="resetBinds"><div class="lab"><b data-t="resetBinds"></b></div><div class="val">›</div></div>
+    <h3 data-t="fixed"></h3>
+    <p data-t="fixedText"></p>
+  </section>
+
+  <section class="panel" id="p-touch">
+    <h1 data-t="touch"></h1>
+    <div class="row" data-act="editLayout"><div class="lab"><b data-t="editLayout"></b><small data-t="editLayoutD"></small></div><div class="val">›</div></div>
+    <div id="touchSettings"></div>
+    <h3 data-t="shownButtons"></h3>
+    <div id="touchShow"></div>
+    <div class="row" data-act="resetLayout"><div class="lab"><b data-t="resetLayout"></b></div><div class="val">›</div></div>
+  </section>
+
+  <section class="panel" id="p-about">
+    <h1 data-t="about"></h1>
+    <div data-t="aboutText"></div>
+    <h3>Ruffle</h3>
+    <p data-t="ruffle"></p>
+    <pre id="licMit">…</pre>
+    <pre id="licApache">…</pre>
+  </section>
+</main>
+
+<div class="overlay" id="busy"><div class="box" id="busyText"></div></div>
+<div class="overlay" id="modal"><div class="box"><p id="mText"></p><div class="mb"><button class="btn" id="mYes"></button><button class="btn" id="mNo"></button></div></div></div>
+<div class="overlay" id="capture"><div class="box"><p id="capAction"></p><div class="big" data-t="pressBtn"></div><p style="color:var(--dim)" data-t="capHint"></p></div></div>
+
+<div id="editor">
+  <div id="edStage"></div>
+  <div id="edBar">
+    <button class="btn" id="edSmaller">－</button><button class="btn" id="edBigger">＋</button>
+    <button class="btn" id="edToggle"></button><button class="btn" id="edReset"></button><button class="btn primary" id="edDone"></button>
+  </div>
+  <div id="edInfo"></div>
+</div>
+
+<script src="common.js"></script>
+<script>
+"use strict";
+const NATIVE = window.AndroidPad || null;
+const $ = id => document.getElementById(id);
+const store = ML.store;
+if (NATIVE && NATIVE.page) NATIVE.page("launcher");
+document.head.insertAdjacentHTML("beforeend", "<style>" + ML.TOUCH_CSS + "</style>");
+
+/* ------------------------------------------------------------------ texts */
+const TX = {
+  fr: {
+    tagline: "Lanceur pour fichier de jeu Flash", play: "Jouer", download: "Télécharger le jeu",
+    import: "Importer un fichier", settings: "Paramètres", controls: "Commandes", touch: "Contrôles tactiles",
+    about: "À propos et licences", quit: "Quitter",
+    hint: '<span class="key">✚</span> naviguer · <span class="key">A</span> choisir · <span class="key">◀ ▶</span> modifier · <span class="key">B</span> retour',
+    welcome: "Bienvenue",
+    homeText: `<p>Cette application ne contient <b>aucun fichier de jeu</b>. Pour jouer, téléchargez ou importez votre propre copie du fichier <code>8khsgfbehb.swf</code>. Elle est vérifiée par son empreinte MD5, puis préparée sur l'appareil (curseur, menus à la manette, écran secondaire, sauvegardes locales).</p>
+      <h3>Option 1 — depuis le site de l'éditeur</h3><p>Choisissez <b>Télécharger le jeu</b> : le fichier est récupéré sur le site officiel de l'éditeur (xgenstudios.com), vérifié puis préparé. Connexion Internet requise.</p>
+      <h3>Option 2 — depuis un fichier</h3><p>Copiez le fichier sur l'appareil, choisissez <b>Importer un fichier</b> et sélectionnez-le. Une fois validé, choisissez <b>Jouer</b>.</p>`,
+    md5: "Empreinte attendue :", gameOk: "Fichier du jeu : <span class='ok'>✓ importé et vérifié</span>", gameNo: "Fichier du jeu : <span class='bad'>non importé</span>",
+    saves: "Sauvegardes", clearSaves: "Effacer les sauvegardes", removeGame: "Retirer le fichier du jeu importé",
+    removeGameD: "Il faudra l'importer à nouveau pour jouer.", nSaves: n => n ? n + " sauvegarde(s) sur cet appareil." : "Aucune sauvegarde sur cet appareil.",
+    controlsIntro: "Choisissez une action puis appuyez sur le bouton de la manette à lui attribuer. Un bouton déjà utilisé dans le même contexte est échangé.",
+    resetBinds: "Rétablir les commandes par défaut", fixed: "Non modifiable",
+    fixedText: "La croix et le stick gauche servent à piloter (et à passer d'un bouton à l'autre dans les menus). Le stick droit affiche le curseur. Dans ce lanceur, A choisit et B revient.",
+    pressBtn: "Appuyez sur un bouton…", capHint: "Toucher l'écran pour annuler · « Aucun » : appuyez sur la croix",
+    editLayout: "Modifier la disposition", editLayoutD: "Manette virtuelle inspirée de l'AYN Thor : placez et redimensionnez chaque élément au doigt.",
+    shownButtons: "Boutons affichés", resetLayout: "Rétablir la disposition par défaut",
+    edSmaller: "－ Taille", edBigger: "＋ Taille", edShow: "Afficher", edHide: "Masquer", edReset: "Réinitialiser", edDone: "Terminé",
+    edInfo: "Glissez un élément pour le déplacer · touchez-le pour le sélectionner", edSel: "Sélection : ",
+    aboutText: `<p><b>DrillPod Launcher</b> lance un fichier de jeu Flash que vous fournissez vous-même. L'application ne contient aucun élément du jeu (ni graphismes, ni sons, ni code). Les modifications nécessaires (signaux pour les menus à la manette et l'écran secondaire) sont appliquées sur l'appareil, à votre copie, au moment de l'importation.</p><p>Le jeu et ses marques appartiennent à leurs propriétaires respectifs. Cette application n'est ni affiliée ni approuvée par eux.</p>
+      <h3>Merci</h3><p>Un grand merci à <b>XGen Studios</b>, créateurs de <b>Motherload</b> (2004). Leur jeu de forage, avec son ambiance martienne, ses améliorations à débloquer et son histoire pleine de surprises, a marqué toute une génération de joueurs sur navigateur. Cette application existe uniquement pour permettre de continuer à profiter de leur travail sur les appareils d'aujourd'hui, maintenant que Flash a disparu. Si vous aimez ce jeu, allez découvrir leurs autres créations sur xgenstudios.com.</p>`,
+    ruffle: "Cette application utilise Ruffle (émulateur Flash), distribué sous double licence MIT et Apache 2.0.",
+    yes: "Oui", no: "Non", none: "Aucun", confirmClear: "Effacer toutes les sauvegardes de cet appareil ?", confirmRemove: "Retirer le fichier du jeu importé ?",
+    busyCheck: "Vérification du fichier…", busyDl: "Téléchargement depuis xgenstudios.com…",
+    rOk: "✓ Fichier vérifié (MD5 correct) et préparé. Vous pouvez jouer !",
+    rMd5: (m) => `✗ Ce n'est pas le bon fichier. Empreinte MD5 obtenue : <code>${m}</code><br>Attendue : <code>42469867aa46129edbab37894c344cb4</code>`,
+    rCancel: "Importation annulée.", rNet: d => "✗ Téléchargement impossible : " + d + "<br>Vous pouvez aussi télécharger le fichier avec un navigateur, puis utiliser <b>Importer un fichier</b>.",
+    rErr: d => "✗ Impossible de lire ou de préparer ce fichier. " + d, onlyAndroid: "Disponible dans l'application Android.",
+    s: {
+      lang: ["Langue", "", [["auto", "Automatique"], ["fr", "Français"], ["en", "English"]]],
+      mode: ["Mode d'affichage", "Aussi modifiable en jeu.", [["etire", "Plein écran étiré"], ["original", "Original 4:3"], ["elargi", "Élargi"]]],
+      second: ["Écran secondaire", "Tableau de bord sur le 2e écran.", [["1", "Activé"], ["0", "Désactivé"]]],
+      hq: ["Mode haute qualité", "Image calculée à 1,5× la résolution de l'écran puis réduite (contours plus nets), qualité Flash maximale et textures lissées. Plus exigeant pour l'appareil.", [["0", "Désactivé"], ["1", "Activé"]]],
+      quality: ["Qualité graphique", "Ignorée en mode haute qualité. Baissez-la si le jeu ralentit.", [["high", "Haute"], ["medium", "Moyenne"], ["low", "Basse"]]],
+      volume: ["Volume", "", [["100", "100 %"], ["75", "75 %"], ["50", "50 %"], ["25", "25 %"], ["0", "Muet"]]],
+      stick: ["Sensibilité du stick (pilotage)", "Basse : il faut pousser plus loin.", [["normal", "Normale"], ["low", "Basse"], ["high", "Haute"]]],
+      autoLogin: ["Connexion automatique aux sauvegardes", "Remplit et valide l'écran de connexion.", [["1", "Activée"], ["0", "Désactivée"]]],
+      touchMode: ["Affichage du tactile", "Auto : masqué dès qu'une manette est utilisée.", [["auto", "Auto"], ["on", "Toujours"], ["off", "Jamais"]]],
+      scale: ["Taille générale", "", [["0.8", "80 %"], ["0.9", "90 %"], ["1", "100 %"], ["1.15", "115 %"], ["1.3", "130 %"], ["1.5", "150 %"]]],
+      opacity: ["Opacité", "", [["0.3", "30 %"], ["0.45", "45 %"], ["0.55", "55 %"], ["0.7", "70 %"], ["0.85", "85 %"], ["1", "100 %"]]],
+      labels: ["Libellés des boutons", "Nom du bouton, ou icône / nom de l'action qu'il fait en pilotage.", [["buttons", "Boutons (A, B…)"], ["icons", "Icônes des actions"], ["names", "Bouton + action"]]],
+      vibrate: ["Vibrations", "", [["1", "Activées"], ["0", "Désactivées"]]],
+      show: ["", "", [["1", "Affiché"], ["0", "Masqué"]]]
+    }
+  },
+  en: {
+    tagline: "Launcher for a Flash game file", play: "Play", download: "Download the game",
+    import: "Import a file", settings: "Settings", controls: "Controls", touch: "Touch controls",
+    about: "About & licences", quit: "Quit",
+    hint: '<span class="key">✚</span> navigate · <span class="key">A</span> select · <span class="key">◀ ▶</span> change · <span class="key">B</span> back',
+    welcome: "Welcome",
+    homeText: `<p>This app contains <b>no game files</b>. To play, download or import your own copy of <code>8khsgfbehb.swf</code>. It is checked against its MD5 fingerprint, then prepared on the device (cursor, gamepad menus, second screen, local saves).</p>
+      <h3>Option 1 — from the publisher's website</h3><p>Choose <b>Download the game</b>: the file is fetched from the publisher's official site (xgenstudios.com), checked and prepared. Internet connection required.</p>
+      <h3>Option 2 — from a file</h3><p>Copy the file to the device, choose <b>Import a file</b> and select it. Once validated, choose <b>Play</b>.</p>`,
+    md5: "Expected fingerprint:", gameOk: "Game file: <span class='ok'>✓ imported and verified</span>", gameNo: "Game file: <span class='bad'>not imported</span>",
+    saves: "Saves", clearSaves: "Delete saves", removeGame: "Remove the imported game file",
+    removeGameD: "You will need to import it again to play.", nSaves: n => n ? n + " save(s) on this device." : "No saves on this device.",
+    controlsIntro: "Pick an action, then press the gamepad button to assign to it. A button already used in the same context is swapped.",
+    resetBinds: "Restore default controls", fixed: "Not changeable",
+    fixedText: "The d-pad and left stick drive the pod (and jump between buttons in menus). The right stick shows the cursor. In this launcher, A selects and B goes back.",
+    pressBtn: "Press a button…", capHint: "Touch the screen to cancel · “None”: press the d-pad",
+    editLayout: "Edit layout", editLayoutD: "Virtual gamepad modelled on the AYN Thor: move and resize each element with your finger.",
+    shownButtons: "Visible buttons", resetLayout: "Restore default layout",
+    edSmaller: "－ Size", edBigger: "＋ Size", edShow: "Show", edHide: "Hide", edReset: "Reset", edDone: "Done",
+    edInfo: "Drag an element to move it · tap it to select it", edSel: "Selected: ",
+    aboutText: `<p><b>DrillPod Launcher</b> runs a Flash game file that you provide yourself. The app contains no part of the game (no graphics, sounds or code). The changes it needs (hooks for gamepad menus and the second screen) are applied on the device, to your copy, when it is imported.</p><p>The game and its trademarks belong to their respective owners. This app is not affiliated with or endorsed by them.</p>
+      <h3>Thank you</h3><p>A big thank-you to <b>XGen Studios</b>, the creators of <b>Motherload</b> (2004). Their mining game, with its Martian atmosphere, upgrades to unlock and surprising story, left its mark on a whole generation of browser gamers. This app only exists so people can keep enjoying their work on today's devices, now that Flash is gone. If you like this game, go and discover their other creations at xgenstudios.com.</p>`,
+    ruffle: "This app uses Ruffle (Flash emulator), dual-licensed under MIT and Apache 2.0.",
+    yes: "Yes", no: "No", none: "None", confirmClear: "Delete all saves on this device?", confirmRemove: "Remove the imported game file?",
+    busyCheck: "Checking the file…", busyDl: "Downloading from xgenstudios.com…",
+    rOk: "✓ File verified (MD5 correct) and prepared. You can play!",
+    rMd5: (m) => `✗ This is not the right file. MD5 found: <code>${m}</code><br>Expected: <code>42469867aa46129edbab37894c344cb4</code>`,
+    rCancel: "Import cancelled.", rNet: d => "✗ Download failed: " + d + "<br>You can also download the file with a browser, then use <b>Import a file</b>.",
+    rErr: d => "✗ Unable to read or prepare this file. " + d, onlyAndroid: "Available in the Android app.",
+    s: {
+      lang: ["Language", "", [["auto", "Automatic"], ["fr", "Français"], ["en", "English"]]],
+      mode: ["Display mode", "Can also be changed in game.", [["etire", "Stretched"], ["original", "Original 4:3"], ["elargi", "Wide"]]],
+      second: ["Second screen", "Dashboard on the 2nd screen.", [["1", "On"], ["0", "Off"]]],
+      hq: ["High-quality mode", "Picture rendered at 1.5× the screen resolution then scaled down (sharper edges), best Flash quality and smoothed textures. More demanding for the device.", [["0", "Off"], ["1", "On"]]],
+      quality: ["Graphics quality", "Ignored in high-quality mode. Lower it if the game slows down.", [["high", "High"], ["medium", "Medium"], ["low", "Low"]]],
+      volume: ["Volume", "", [["100", "100 %"], ["75", "75 %"], ["50", "50 %"], ["25", "25 %"], ["0", "Mute"]]],
+      stick: ["Stick sensitivity (driving)", "Low: push further.", [["normal", "Normal"], ["low", "Low"], ["high", "High"]]],
+      autoLogin: ["Automatic save login", "Fills in and confirms the login screen.", [["1", "On"], ["0", "Off"]]],
+      touchMode: ["Show touch controls", "Auto: hidden as soon as a gamepad is used.", [["auto", "Auto"], ["on", "Always"], ["off", "Never"]]],
+      scale: ["Overall size", "", [["0.8", "80 %"], ["0.9", "90 %"], ["1", "100 %"], ["1.15", "115 %"], ["1.3", "130 %"], ["1.5", "150 %"]]],
+      opacity: ["Opacity", "", [["0.3", "30 %"], ["0.45", "45 %"], ["0.55", "55 %"], ["0.7", "70 %"], ["0.85", "85 %"], ["1", "100 %"]]],
+      labels: ["Button labels", "Button name, or icon / name of what it does while driving.", [["buttons", "Buttons (A, B…)"], ["icons", "Action icons"], ["names", "Button + action"]]],
+      vibrate: ["Vibration", "", [["1", "On"], ["0", "Off"]]],
+      show: ["", "", [["1", "Shown"], ["0", "Hidden"]]]
+    }
+  }
+};
+const T = () => TX[ML.lang()];
+function applyTexts(){
+  document.documentElement.lang = ML.lang();
+  document.querySelectorAll("[data-t]").forEach(e => { const v = T()[e.dataset.t]; if (typeof v === "string") e.innerHTML = v; });
+  $("mYes").textContent = T().yes; $("mNo").textContent = T().no;
+  $("edSmaller").textContent = T().edSmaller; $("edBigger").textContent = T().edBigger;
+  $("edReset").textContent = T().edReset; $("edDone").textContent = T().edDone;
+  refreshStatus(); renderAll();
+}
+
+/* ------------------------------------------------------------------ settings rows */
+// src: "ls" = localStorage key, "lay" = touch layout field
+const SETTINGS = [
+  {k: "lang", def: "auto"}, {k: "mode", def: "etire"}, {k: "second", def: "1"}, {k: "hq", def: "0"}, {k: "quality", def: "high"},
+  {k: "volume", def: "100"}, {k: "stick", def: "normal"}, {k: "autoLogin", def: "1"}
+];
+const TOUCH_SETTINGS = [
+  {k: "touchMode", def: "auto"}, {k: "scale", lay: 1}, {k: "opacity", lay: 1},
+  {k: "labels", lay: 1}, {k: "vibrate", def: "1"}
+];
+function getVal(s){ if (s.lay) return String(ML.loadLayout()[s.k]); return store.get(s.k, s.def); }
+function setVal(s, v){
+  if (s.lay) { const L = ML.loadLayout(); L[s.k] = isNaN(+v) ? v : +v; ML.saveLayout(L); }
+  else if (s.show) { const L = ML.loadLayout(); L[s.show].show = v === "1"; ML.saveLayout(L); }
+  else store.set(s.k, v);
+  if (s.k === "second" && NATIVE && NATIVE.setSecond) NATIVE.setSecond(v === "1");
+}
+function rowHTML(s, idx, label, desc){
+  const def = T().s[s.show ? "show" : s.k], opts = def[2];
+  const v = s.show ? (ML.loadLayout()[s.show].show ? "1" : "0") : getVal(s);
+  let o = opts.find(x => x[0] === v); if (!o) o = opts.find(x => +x[0] === +v) || opts[0];
+  return `<div class="row" data-set="${idx}"><div class="lab"><b>${label || def[0]}</b>${(desc || def[1]) ? `<small>${desc || def[1]}</small>` : ""}</div>
+    <div class="val"><span class="arr">◀</span>${o[1]}<span class="arr">▶</span></div></div>`;
+}
+let ROWS = [];   // flattened list of setting descriptors, indexed by data-set
+function renderAll(){
+  ROWS = [];
+  const add = (s) => { ROWS.push(s); return ROWS.length - 1; };
+  $("settings").innerHTML = SETTINGS.map(s => rowHTML(s, add(s))).join("");
+  $("touchSettings").innerHTML = TOUCH_SETTINGS.map(s => rowHTML(s, add(s))).join("");
+  $("touchShow").innerHTML = ML.TOUCH_IDS.map(k => { const s = {show: k}; return rowHTML(s, add(s), ML.touchName(k)); }).join("");
+  const n = Object.keys(localStorage).filter(k => k.startsWith("ml.cloudsave.") && k !== "ml.cloudsave.__last").length;
+  $("saveInfo").textContent = T().nSaves(n);
+  renderBinds();
+  bindRows();
+}
+function changeRow(i, dir){
+  const s = ROWS[i], def = T().s[s.show ? "show" : s.k], opts = def[2];
+  const v = s.show ? (ML.loadLayout()[s.show].show ? "1" : "0") : getVal(s);
+  let j = opts.findIndex(x => x[0] === v); if (j < 0) j = Math.max(0, opts.findIndex(x => +x[0] === +v));
+  j = (j + dir + opts.length) % opts.length;
+  setVal(s, opts[j][0]);
+  if (s.k === "lang") { applyTexts(); setFocus(document.querySelector(`[data-set="${i}"]`)); return; }
+  const keep = i; renderAll(); setFocus(document.querySelector(`[data-set="${keep}"]`));
+}
+
+/* ------------------------------------------------------------------ gamepad bindings */
+function renderBinds(){
+  const B = ML.loadBindings();
+  let h = "";
+  for (const g of ["drive", "menu", "global"]) {
+    h += `<h3>${ML.t("grp." + g)}</h3>`;
+    for (const a of ML.ACTIONS.filter(x => x.grp === g))
+      h += `<div class="row" data-bind="${a.id}"><div class="lab"><b>${ML.t("act." + a.id)}</b></div>
+        <div class="val"><span class="chip${B[a.id] ? "" : " none"}">${B[a.id] || T().none}</span></div></div>`;
+  }
+  $("binds").innerHTML = h;
+}
+let capturing = null;
+function startCapture(id){
+  capturing = {id, t: performance.now()};
+  $("capAction").textContent = ML.t("act." + id);
+  $("capture").classList.add("on");
+}
+function endCapture(button){
+  const c = capturing; capturing = null; $("capture").classList.remove("on");
+  if (c && button !== undefined) { ML.bindButton(c.id, button); renderAll(); }
+  if (c) setFocus(document.querySelector(`[data-bind="${c.id}"]`));
+}
+$("capture").addEventListener("pointerdown", () => endCapture());
+
+/* ------------------------------------------------------------------ touch layout editor */
+let ed = null;
+function openEditor(){
+  ed = {L: ML.loadLayout(), sel: "stick"};
+  $("editor").classList.add("on");
+  drawEditor();
+}
+function drawEditor(){
+  const st = $("edStage"), els = ML.renderTouch(st, ed.L, {editor: true});
+  for (const id in els) {
+    const el = els[id];
+    if (id === ed.sel) el.classList.add("sel");
+    el.addEventListener("pointerdown", e => {
+      e.preventDefault(); el.setPointerCapture(e.pointerId);
+      ed.sel = id; const W = st.clientWidth, H = st.clientHeight, c = ed.L[id];
+      const sx = e.clientX, sy = e.clientY, ox = c.x, oy = c.y; let moved = false;
+      el.onpointermove = m => { moved = true; c.x = Math.min(0.98, Math.max(0.02, ox + (m.clientX - sx) / W)); c.y = Math.min(0.98, Math.max(0.02, oy + (m.clientY - sy) / H));
+        const w = el.offsetWidth, h = el.offsetHeight; el.style.left = (c.x * W - w / 2) + "px"; el.style.top = (c.y * H - h / 2) + "px"; };
+      el.onpointerup = () => { el.onpointermove = el.onpointerup = null; drawEditor(); };
+    });
+  }
+  const c = ed.L[ed.sel];
+  $("edToggle").textContent = c.show ? T().edHide : T().edShow;
+  $("edInfo").textContent = T().edInfo + " · " + T().edSel + ML.touchName(ed.sel);
+}
+function edResize(f){ const c = ed.L[ed.sel]; c.s = Math.min(0.8, Math.max(0.06, c.s * f)); drawEditor(); }
+$("edSmaller").onclick = () => edResize(1 / 1.12);
+$("edBigger").onclick = () => edResize(1.12);
+$("edToggle").onclick = () => { ed.L[ed.sel].show = !ed.L[ed.sel].show; drawEditor(); };
+$("edReset").onclick = () => { const keep = {opacity: ed.L.opacity, labels: ed.L.labels, scale: ed.L.scale}; ed.L = Object.assign(ML.defaultLayout(), keep); drawEditor(); };
+$("edDone").onclick = closeEditor;
+function closeEditor(){ ML.saveLayout(ed.L); ed = null; $("editor").classList.remove("on"); renderAll(); setFocus(document.querySelector('[data-act="editLayout"]')); }
+addEventListener("resize", () => { if (ed) drawEditor(); });
+
+/* ------------------------------------------------------------------ game file status */
+let installed = false;
+function refreshStatus(){
+  try { installed = NATIVE ? JSON.parse(NATIVE.gameStatus()).installed : !!store.get("devGame", ""); } catch (e) { installed = false; }
+  $("status").innerHTML = installed ? T().gameOk : T().gameNo;
+  document.querySelector('[data-act="play"]').disabled = !installed;
+}
+function message(html, kind){ $("homeMsg").innerHTML = `<div class="msg ${kind || ""}">${html}</div>`; }
+window.onImportResult = function(r){
+  $("busy").classList.remove("on");
+  if (r.ok) message(T().rOk, "good");
+  else if (r.reason === "md5") message(T().rMd5(r.md5), "err");
+  else if (r.reason === "cancel") message(T().rCancel);
+  else if (r.reason === "net") message(T().rNet(r.detail || ""), "err");
+  else message(T().rErr(r.detail || ""), "err");
+  showPanel("home"); refreshStatus();
+  setFocus(document.querySelector(installed ? '[data-act="play"]' : r.reason === "net" ? '[data-act="import"]' : '[data-act="download"]'));
+};
+window.onImportStarted = (txt) => { $("busyText").textContent = /xgen/i.test(txt || "") ? T().busyDl : T().busyCheck; $("busy").classList.add("on"); };
+
+/* ------------------------------------------------------------------ actions */
+function act(name){
+  if (name === "play") { if (installed) location.href = "index.html"; }
+  else if (name === "download") { if (NATIVE && NATIVE.downloadGame) NATIVE.downloadGame(); else message(T().onlyAndroid); }
+  else if (name === "import") { if (NATIVE && NATIVE.importGame) NATIVE.importGame(); else message(T().onlyAndroid); }
+  else if (name === "quit") { if (NATIVE && NATIVE.quit) NATIVE.quit(); }
+  else if (name === "clearSaves") ask(T().confirmClear, () => {
+      Object.keys(localStorage).filter(k => k.startsWith("ml.cloudsave.")).forEach(k => localStorage.removeItem(k));
+      renderAll(); setFocus(document.querySelector('[data-act="clearSaves"]')); });
+  else if (name === "removeGame") ask(T().confirmRemove, () => { if (NATIVE && NATIVE.removeGame) NATIVE.removeGame(); refreshStatus(); setFocus(document.querySelector('[data-act="removeGame"]')); });
+  else if (name === "resetBinds") { ML.resetBindings(); renderAll(); setFocus(document.querySelector('[data-act="resetBinds"]')); }
+  else if (name === "resetLayout") { ML.saveLayout(ML.defaultLayout()); renderAll(); setFocus(document.querySelector('[data-act="resetLayout"]')); }
+  else if (name === "editLayout") openEditor();
+}
+let panel = "home";
+function showPanel(p){
+  panel = p;
+  document.querySelectorAll(".panel").forEach(e => e.classList.toggle("on", e.id === "p-" + p));
+  document.querySelectorAll(".nav .btn").forEach(b => b.classList.toggle("sel", b.dataset.panel === p));
+  renderAll();
+  $("main").scrollTop = 0;
+}
+
+/* ------------------------------------------------------------------ yes/no dialog */
+let modal = null;
+function ask(text, onYes){
+  modal = {onYes, back: document.querySelector(".focus")};
+  $("mText").textContent = text; $("modal").classList.add("on");
+  document.querySelectorAll(".focus").forEach(e => e.classList.remove("focus"));
+  $("mNo").classList.add("focus");
+}
+function closeModal(yes){
+  const m = modal; modal = null; $("modal").classList.remove("on");
+  $("mYes").classList.remove("focus"); $("mNo").classList.remove("focus");
+  if (m.back) setFocus(m.back);
+  if (yes) m.onYes();
+}
+$("mYes").onclick = () => closeModal(true); $("mNo").onclick = () => closeModal(false);
+
+/* ------------------------------------------------------------------ focus navigation */
+let zone = "nav";
+function focusables(){
+  if (zone === "nav") return [...document.querySelectorAll(".nav .btn")].filter(b => !b.disabled);
+  return [...document.querySelectorAll(".panel.on .row")];
+}
+/* Scroll only the container that holds the element (never the page itself). */
+function ensureVisible(el){
+  const box = el.closest("main") || el.closest(".nav") || el.closest("aside"); if (!box) return;
+  const r = el.getBoundingClientRect(), b = box.getBoundingClientRect(), m = 8;
+  if (box.scrollHeight > box.clientHeight) {
+    if (r.top < b.top + m) box.scrollTop -= (b.top + m - r.top);
+    else if (r.bottom > b.bottom - m) box.scrollTop += (r.bottom - b.bottom + m);
+  }
+  if (box.scrollWidth > box.clientWidth) {
+    if (r.left < b.left + m) box.scrollLeft -= (b.left + m - r.left);
+    else if (r.right > b.right - m) box.scrollLeft += (r.right - b.right + m);
+  }
+  document.documentElement.scrollTop = document.body.scrollTop = 0;
+}
+function setFocus(el){
+  document.querySelectorAll(".focus").forEach(e => e.classList.remove("focus"));
+  if (!el) return;
+  zone = el.closest(".nav") ? "nav" : "main";
+  el.classList.add("focus");
+  ensureVisible(el);
+}
+function move(d){
+  const list = focusables(), cur = document.querySelector(".focus");
+  if (!list.length) { if (zone === "main") $("main").scrollTop += d * 120; return; }
+  let i = list.indexOf(cur);
+  if (i < 0) i = 0;
+  else if (zone === "main" && ((d < 0 && i === 0) || (d > 0 && i === list.length - 1))) {
+    $("main").scrollTop += d * 120; return;       // let the reader scroll past the last row (long texts)
+  } else i = Math.max(0, Math.min(list.length - 1, i + d));
+  setFocus(list[i]);
+}
+function enterPanel(p){ showPanel(p); zone = "main"; const f = focusables(); if (f.length) setFocus(f[0]); else document.querySelectorAll(".focus").forEach(e => e.classList.remove("focus")); }
+function activate(){
+  const el = document.querySelector(".focus");
+  if (!el) return;
+  if (el.dataset.act) act(el.dataset.act);
+  else if (el.dataset.panel) enterPanel(el.dataset.panel);
+  else if (el.dataset.set != null) changeRow(+el.dataset.set, 1);
+  else if (el.dataset.bind) startCapture(el.dataset.bind);
+}
+function back(){
+  if (zone === "main" || !document.querySelector(".focus")) { setFocus(document.querySelector(`.nav .btn[data-panel="${panel}"]`) || focusables()[0]); zone = "nav"; return true; }
+  if (panel !== "home") { showPanel("home"); setFocus(document.querySelector(".nav .btn")); return true; }
+  return false;
+}
+window.onBack = () => {
+  if (capturing) { endCapture(); return true; }
+  if (ed) { closeEditor(); return true; }
+  if (modal) { closeModal(false); return true; }
+  return back();
+};
+function onButton(name, down){
+  if (!down) return;
+  if (capturing) {
+    if (performance.now() - capturing.t < 250) return;             // ignore the press that opened it
+    if (["UP", "DOWN", "LEFT", "RIGHT"].includes(name)) endCapture("");
+    else if (ML.BUTTONS.includes(name)) endCapture(name);
+    return;
+  }
+  if (ed) { if (name === "B" || name === "START") closeEditor(); return; }
+  if (modal) {
+    if (name === "LEFT" || name === "RIGHT") { const y = $("mYes").classList.contains("focus"); $("mYes").classList.toggle("focus", !y); $("mNo").classList.toggle("focus", y); }
+    else if (name === "A") closeModal($("mYes").classList.contains("focus"));
+    else if (name === "B") closeModal(false);
+    return;
+  }
+  const el = document.querySelector(".focus");
+  const horizNav = getComputedStyle($("nav")).flexDirection === "row";
+  if (zone === "nav" && horizNav) {                 // top bar layout: left/right walk the bar, down enters
+    if (name === "LEFT") return move(-1);
+    if (name === "RIGHT") return move(1);
+    if (name === "DOWN") { if (el && el.dataset.panel) enterPanel(el.dataset.panel); return; }
+    if (name === "UP") return;
+  }
+  if (name === "UP") { if (zone === "main" && horizNav && focusables().indexOf(el) === 0) back(); else move(-1); }
+  else if (name === "DOWN") move(1);
+  else if (name === "LEFT") { if (el && el.dataset.set != null) changeRow(+el.dataset.set, -1); else if (zone === "main") back(); }
+  else if (name === "RIGHT") {
+    if (el && el.dataset.set != null) changeRow(+el.dataset.set, 1);
+    else if (zone === "nav" && el && el.dataset.panel) enterPanel(el.dataset.panel);
+  }
+  else if (name === "A" || name === "START") activate();
+  else if (name === "B") back();
+}
+const stickState = {x: 0, y: 0, hx: 0, hy: 0};
+window.GP = {
+  button: onButton,
+  axes(a){
+    const y = Math.abs(a[1]) > 0.6 ? Math.sign(a[1]) : 0, x = Math.abs(a[0]) > 0.6 ? Math.sign(a[0]) : 0;
+    if (y !== stickState.y) { stickState.y = y; if (y) onButton(y < 0 ? "UP" : "DOWN", true); }
+    if (x !== stickState.x) { stickState.x = x; if (x) onButton(x < 0 ? "LEFT" : "RIGHT", true); }
+    const hy = a[5] < -0.5 ? -1 : a[5] > 0.5 ? 1 : 0, hx = a[4] < -0.5 ? -1 : a[4] > 0.5 ? 1 : 0;
+    if (hy !== stickState.hy) { stickState.hy = hy; if (hy) onButton(hy < 0 ? "UP" : "DOWN", true); }
+    if (hx !== stickState.hx) { stickState.hx = hx; if (hx) onButton(hx < 0 ? "LEFT" : "RIGHT", true); }
+    for (const [i, n] of [[6, "L2"], [7, "R2"]]) {       // analog triggers, for binding capture
+      const on = a[i] > 0.6; if (on !== !!stickState[n]) { stickState[n] = on; if (on) onButton(n, true); }
+    }
+  }
+};
+document.addEventListener("keydown", e => {
+  const m = {ArrowUp: "UP", ArrowDown: "DOWN", ArrowLeft: "LEFT", ArrowRight: "RIGHT", Enter: "A", Escape: "B"}[e.key];
+  if (m) { e.preventDefault(); onButton(m, true); }
+});
+function bindRows(){
+  document.querySelectorAll(".panel .row").forEach(r => r.onclick = ev => {
+    setFocus(r);
+    if (r.dataset.set != null) { const arrows = r.querySelectorAll(".arr"); changeRow(+r.dataset.set, ev.target === arrows[0] ? -1 : 1); }
+    else if (r.dataset.act) act(r.dataset.act);
+    else if (r.dataset.bind) startCapture(r.dataset.bind);
+  });
+}
+document.querySelectorAll(".nav .btn").forEach(b => b.onclick = () => { setFocus(b); if (b.dataset.panel) { showPanel(b.dataset.panel); setFocus(b); } else activate(); });
+document.addEventListener("scroll", () => { document.documentElement.scrollTop = 0; }, true);
+
+fetch("LICENSE_MIT").then(r => r.ok ? r.text() : "").then(t => $("licMit").textContent = t || "MIT License").catch(() => {});
+fetch("LICENSE_APACHE").then(r => r.ok ? r.text() : "").then(t => $("licApache").textContent = t || "Apache License 2.0").catch(() => {});
+
+applyTexts();
+setFocus(document.querySelector(installed ? '[data-act="play"]' : '[data-act="download"]'));
+</script>
+</body>
+</html>

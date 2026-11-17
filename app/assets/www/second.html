@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>DrillPod – tableau de bord</title>
+<style>
+  :root{
+    --bg:#0b0f0a; --panel:#141b12; --line:#26331f; --text:#d9f0cf; --dim:#7f9a74;
+    --green:#7be04a; --yellow:#ffc838; --red:#ff5a4a; --blue:#58b8ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font:15px/1.3 "Trebuchet MS",system-ui,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none}
+  body{margin:0}
+  #root{position:absolute;left:0;top:0;transform-origin:0 0;display:flex;flex-direction:column;gap:10px;padding:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  h2{margin:0 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
+
+  #top{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}
+  .big{font-size:30px;font-weight:700;color:var(--yellow);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mid{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .lbl{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+
+  .gauge{display:grid;grid-template-columns:86px 1fr 92px;align-items:center;gap:10px;margin:6px 0}
+  .gauge .name{font-weight:600}
+  .bar{height:18px;background:#0a0d09;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;border-radius:9px;transition:width .25s,background .25s}
+  .gauge .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .warn{color:var(--red)}
+  .blink{animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:.35}}
+
+  #cols{display:grid;grid-template-columns:1.25fr 1fr;gap:10px;flex:1;min-height:0}
+  .scroll{overflow:auto;min-height:0}
+  table{width:100%;border-collapse:collapse}
+  td{padding:4px 2px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  td.n{text-align:right;white-space:nowrap}
+  td .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+  tr.total td{border-bottom:0;font-weight:700;color:var(--yellow);padding-top:7px}
+  .empty{color:var(--dim);padding:8px 0}
+  .key{display:inline-block;min-width:26px;padding:1px 6px;border-radius:6px;background:#26331f;color:var(--text);
+    font-size:12px;font-weight:700;text-align:center;margin-right:6px}
+  tr.zero td{color:#4e5f47}
+  #gear td:first-child{color:var(--dim);width:42%}
+  #alerts{display:flex;gap:8px;flex-wrap:wrap;min-height:0}
+  #alerts span{background:#3a0f0b;color:#ffb3aa;border:1px solid #6a1d16;border-radius:8px;padding:4px 10px;font-weight:700}
+  #wait{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);
+    background:var(--bg);font-size:18px;text-align:center;padding:20px}
+  .short{display:none}
+  /* compact layout for small secondary screens (e.g. AYN Thor bottom screen ≈ 415×477) */
+  @media all{   /* the dashboard is always laid out at ~620x540 then scaled */
+    html,body{font-size:12.5px}
+    #root{gap:6px;padding:6px}
+    .panel{padding:6px 8px;border-radius:9px}
+    #top{gap:6px}
+    .big{font-size:19px} .mid{font-size:15px} .lbl{font-size:9.5px}
+    .gauge{grid-template-columns:62px 1fr 74px;gap:6px;margin:3px 0}
+    .bar{height:11px}
+    h2{font-size:9.5px;margin-bottom:3px}
+    td{padding:2px 1px}
+    .key{min-width:20px;padding:0 4px;font-size:10px;margin-right:4px}
+    #cols{grid-template-columns:1.1fr 1fr;gap:6px}
+    #alerts span{padding:1px 6px;font-size:11px}
+    td .dot{width:8px;height:8px;margin-right:4px}
+    #gear td:first-child{width:38%}
+    .long{display:none} .short{display:inline}
+  }
+</style>
+</head>
+<body><div id="root">
+<div id="wait">DrillPod<br><small data-t="d.wait"></small></div>
+
+<div id="top">
+  <div class="panel"><div class="lbl" data-t="d.cash"></div><div class="big" id="cash">$0</div></div>
+  <div class="panel"><div class="lbl" data-t="d.depth"></div><div class="mid" id="depth">0 ft</div></div>
+  <div class="panel"><div class="lbl" data-t="d.score"></div><div class="mid" id="score">0</div></div>
+</div>
+
+<div class="panel">
+  <div class="gauge"><span class="name" data-t="d.fuel"></span><div class="bar"><i id="gFuel"></i></div><span class="val" id="vFuel"></span></div>
+  <div class="gauge"><span class="name" data-t="d.hull"></span><div class="bar"><i id="gHull"></i></div><span class="val" id="vHull"></span></div>
+  <div class="gauge"><span class="name" data-t="d.bay"></span><div class="bar"><i id="gBay"></i></div><span class="val" id="vBay"></span></div>
+  <div id="alerts"></div>
+</div>
+
+<div id="cols">
+  <div class="panel scroll">
+    <h2><span data-t="d.cargo"></span> <span id="bayInfo" style="text-transform:none;letter-spacing:0"></span></h2>
+    <table id="cargo"></table>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:10px;min-height:0">
+    <div class="panel scroll"><h2 data-t="d.items"></h2><table id="items"></table></div>
+    <div class="panel scroll" id="gearPanel"><h2 data-t="d.gear"></h2><table id="gear"></table></div>
+  </div>
+</div>
+
+</div>
+<script src="common.js"></script>
+<script>
+"use strict";
+// Same order as the game's internal tables.
+const MINERALS = [
+  ["Ironium", 30, "#b07a55"], ["Bronzium", 60, "#c98b3c"], ["Silverium", 100, "#cfd6dc"], ["Goldium", 250, "#ffd23c"],
+  ["Platinium", 750, "#9fb6c8"], ["Einsteinium", 2000, "#7cff6b"], ["Emerald", 5000, "#2ecf6a"], ["Ruby", 20000, "#ff3b5c"],
+  ["Diamond", 100000, "#bff4ff"], ["Amazonite", 500000, "#2fe0c5"]
+];
+const ITEM_ACT = ["fuel", "repair", "dynamite", "c4", "quantum", "matter", ""];
+const BIND = ML.loadBindings(), tt = ML.t;
+document.querySelectorAll("[data-t]").forEach(e => e.textContent = tt(e.dataset.t));
+document.documentElement.lang = ML.lang();
+/* Lay the dashboard out at a reference size (about 570 x 490) and scale it to fill any screen:
+   nothing gets cut whatever the resolution or Android display density. */
+function fit(){
+  const r = document.getElementById("root"), k = Math.min(innerWidth / 570, innerHeight / 490);
+  r.style.width = (innerWidth / k) + "px"; r.style.height = (innerHeight / k) + "px";
+  r.style.transform = "scale(" + k + ")";
+}
+addEventListener("resize", fit); fit();
+const $ = id => document.getElementById(id);
+const fmt = n => Math.round(n).toLocaleString(ML.lang() === "fr" ? "fr-CA" : "en-CA");
+function gauge(id, frac, colorOk){
+  const g = $(id), p = Math.max(0, Math.min(1, frac));
+  g.style.width = (p * 100).toFixed(1) + "%";
+  g.style.background = p < 0.2 ? "var(--red)" : p < 0.4 ? "var(--yellow)" : colorOk;
+}
+window.update = function(d){
+  $("wait").style.display = d.screen === "titleFrame" ? "flex" : "none";
+  $("cash").textContent = "$" + fmt(d.cash);
+  $("depth").textContent = fmt(d.depth) + " ft";
+  $("score").textContent = fmt(d.score);
+
+  const fuelP = d.fuelCap ? d.fuel / d.fuelCap : 0, hullP = d.hpMax ? d.hp / d.hpMax : 0;
+  const used = Math.max(0, d.baySize - d.bayFree), bayP = d.baySize ? used / d.baySize : 0;
+  gauge("gFuel", fuelP, "var(--green)"); $("vFuel").textContent = d.fuel.toFixed(1) + " / " + fmt(d.fuelCap) + " L";
+  gauge("gHull", hullP, "var(--blue)");  $("vHull").textContent = fmt(d.hp) + " / " + fmt(d.hpMax);
+  const bayG = $("gBay"); bayG.style.width = (Math.min(1, bayP) * 100).toFixed(1) + "%";
+  bayG.style.background = bayP >= 1 ? "var(--red)" : bayP >= 0.8 ? "var(--yellow)" : "var(--green)";
+  $("vBay").textContent = Math.round(bayP * 100) + " %";
+  $("bayInfo").textContent = "— " + used + " / " + d.baySize + " " + tt("d.places") + " · " + fmt(d.mass * 10) + " kg";
+
+  const alerts = [];
+  if (fuelP < 0.25) alerts.push(tt("d.lowFuel"));
+  if (hullP < 0.3) alerts.push(tt("d.damaged"));
+  if (d.baySize && used >= d.baySize) alerts.push(tt("d.full"));
+  $("alerts").innerHTML = alerts.map(a => "<span class='blink'>" + a + "</span>").join("");
+  $("vFuel").className = "val" + (fuelP < 0.25 ? " warn" : "");
+  $("vHull").className = "val" + (hullP < 0.3 ? " warn" : "");
+
+  let rows = "", total = 0;
+  MINERALS.forEach((m, i) => {
+    const n = d.cargo[i] || 0; if (!n) return;
+    total += n * m[1];
+    rows += `<tr><td><span class="dot" style="background:${m[2]}"></span>${m[0]}</td><td class="n">× ${n}</td><td class="n">$${fmt(n * m[1])}</td></tr>`;
+  });
+  $("cargo").innerHTML = rows ? rows + `<tr class="total"><td>${tt("d.value")}</td><td></td><td class="n">$${fmt(total)}</td></tr>`
+                              : `<tr><td class="empty">${tt("d.empty")}</td></tr>`;
+
+  $("items").innerHTML = ITEM_ACT.map((act, i) => {
+    const n = d.items[i] || 0;
+    if (i === 6 && !n) return "";
+    const key = act ? BIND[act] : "", name = i < 6 ? tt("act." + act) : tt("d.i6");
+    return `<tr class="${n ? "" : "zero"}"><td>${key ? `<span class="key">${key}</span>` : ""}<span class="long">${name}</span><span class="short">${tt("d.i" + i)}</span></td><td class="n">× ${n}</td></tr>`;
+  }).join("");
+
+  const g = d.gear || {};
+  $("gear").innerHTML = [[tt("d.drill"), g.drill], [tt("d.hull"), g.hull], [tt("d.engine"), g.engine], [tt("d.tank"), g.tank],
+                         [tt("d.radiator"), g.radiator], [tt("d.bay"), g.bay]]
+    .map(r => `<tr><td>${r[0]}</td><td>${r[1] || "—"}</td></tr>`).join("");
+};
+</script>
+</body>
+</html>
