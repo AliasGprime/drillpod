@@ -1,3 +1,5 @@
+**This project is far from perfect, I am just having fun with it.**
+
 # DrillPod
 
 **Unofficial Android launcher dedicated to *Motherload* (XGen Studios, 2004) — play your own copy with a gamepad, touch controls, and on two screens.**
