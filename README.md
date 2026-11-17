@@ -2,6 +2,16 @@
 
 # DrillPod
 
+<p align="center">
+  <img src="docs/screenshots/launcher.webp" alt="DrillPod launcher" width="96%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/title-screen.webp" alt="Motherload title screen on the AYN Thor, with the second screen waiting for the game" width="48%">
+  &nbsp;
+  <img src="docs/screenshots/gameplay-dashboard.webp" alt="Motherload in game on the AYN Thor, with the live dashboard on the second screen" width="48%">
+</p>
+<p align="center"><sub>Launcher · title screen · in game with the live second-screen dashboard (AYN Thor)</sub></p>
+
 **Unofficial Android launcher dedicated to *Motherload* (XGen Studios, 2004) — play your own copy with a gamepad, touch controls, and on two screens.**
 
 DrillPod is built specifically for **Motherload**, the classic Flash mining game by XGen Studios. It runs the game with the open-source [Ruffle](https://ruffle.rs) emulator and adapts it to today's devices: Android handhelds (designed for the dual-screen **AYN Thor**), phones and tablets. Every feature — button-to-button menu navigation, the second-screen dashboard, local saves — is tailored to Motherload's screens, shops and save system; DrillPod is not a general-purpose Flash player.
