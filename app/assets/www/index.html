@@ -59,7 +59,8 @@
   /* tool buttons at the top centre (the corners belong to the touch shoulder buttons) */
   #helpbtn{left:calc(50% - 63px)}#screen{left:calc(50% - 19px)}#toggle{left:calc(50% + 25px)}
   body.hide .pad,body.hide #screen,body.hide #helpbtn{display:none !important}
-  body.hide #toggle{opacity:.3}
+  /* gamepad players: only a faint touch-toggle stays, in the top-right corner (off the game's logo) */
+  body.hide #toggle{opacity:.22;left:auto;right:6px;top:6px;width:30px;height:30px;font-size:12px}
 </style>
 </head>
 <body class="m-original">

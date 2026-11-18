@@ -51,6 +51,9 @@
   .box{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:1em 1.2em;max-width:30em;width:100%;text-align:center}
   .box .mb{display:flex;gap:var(--gap);margin-top:.8em}.box .btn{justify-content:center}
   .big{font-size:1.6em;margin:.3em 0;color:var(--focus);font-weight:800}
+  .updbox{max-width:40em;text-align:left}
+  #updNotes{max-height:45vh;overflow-y:auto;margin:.6em 0;padding:.6em .8em;background:var(--panel);border-radius:8px;font-size:.85em;white-space:pre-wrap;color:#c9d3de}
+  .bar{height:.5em;background:var(--panel);border-radius:4px;overflow:hidden;margin-top:.6em}.bar i{display:block;height:100%;background:var(--accent);width:0}
 
   /* narrow / portrait screens: menu on top, content below */
   @media (max-aspect-ratio: 1/1), (max-width: 560px){
@@ -111,6 +114,9 @@
   <section class="panel" id="p-settings">
     <h1 data-t="settings"></h1>
     <div id="settings"></div>
+    <h3 data-t="updates"></h3>
+    <div id="updSettings"></div>
+    <div class="row" data-act="checkUpdate"><div class="lab"><b data-t="checkUpdate"></b><small id="verInfo"></small></div><div class="val">›</div></div>
     <h3 data-t="saves"></h3>
     <div class="row" data-act="clearSaves"><div class="lab"><b data-t="clearSaves"></b><small id="saveInfo"></small></div><div class="val">›</div></div>
     <div class="row" data-act="removeGame"><div class="lab"><b data-t="removeGame"></b><small data-t="removeGameD"></small></div><div class="val">›</div></div>
@@ -145,6 +151,11 @@
 </main>
 
 <div class="overlay" id="busy"><div class="box" id="busyText"></div></div>
+<div class="overlay" id="upd"><div class="box updbox">
+  <div class="big" id="updTitle"></div><p id="updVer" style="color:var(--dim);margin:0"></p>
+  <div id="updNotes"></div>
+  <div class="mb"><button class="btn primary" id="updYes"></button><button class="btn" id="updLater"></button><button class="btn" id="updSkip"></button></div>
+</div></div>
 <div class="overlay" id="modal"><div class="box"><p id="mText"></p><div class="mb"><button class="btn" id="mYes"></button><button class="btn" id="mNo"></button></div></div></div>
 <div class="overlay" id="capture"><div class="box"><p id="capAction"></p><div class="big" data-t="pressBtn"></div><p style="color:var(--dim)" data-t="capHint"></p></div></div>
 
@@ -179,7 +190,17 @@ const TX = {
       <h3>Option 2 — depuis un fichier</h3><p>Copiez le fichier sur l'appareil, choisissez <b>Importer un fichier</b> et sélectionnez-le. Une fois validé, choisissez <b>Jouer</b>.</p>`,
     md5: "Empreinte attendue :", gameOk: "Fichier du jeu : <span class='ok'>✓ importé et vérifié</span>", gameNo: "Fichier du jeu : <span class='bad'>non importé</span>",
     saves: "Sauvegardes", clearSaves: "Effacer les sauvegardes", removeGame: "Retirer le fichier du jeu importé",
-    removeGameD: "Il faudra l'importer à nouveau pour jouer.", nSaves: n => n ? n + " sauvegarde(s) sur cet appareil." : "Aucune sauvegarde sur cet appareil.",
+    removeGameD: "Il faudra l'importer à nouveau pour jouer.",
+    updates: "Mises à jour", checkUpdate: "Rechercher une mise à jour", verNow: v => "Version installée : " + v,
+    updTitle: "Mise à jour disponible", updVer: (a, b) => `Version ${b} disponible (vous avez la ${a}).`,
+    updYes: "Mettre à jour", updLater: "Plus tard", updSkip: "Ignorer cette version",
+    updNone: v => `✓ DrillPod est à jour (version ${v}).`, updErr: d => "✗ Impossible de vérifier les mises à jour : " + d,
+    updDl: p => p >= 0 ? `Téléchargement de la mise à jour… ${p} %` : "Téléchargement de la mise à jour…",
+    updInstall: "Vérification réussie. Confirmez l'installation dans la fenêtre d'Android.",
+    updPerm: "Autorisez DrillPod à installer des applications, puis revenez : l'installation reprendra toute seule.",
+    updOk: "✓ Mise à jour installée.", updAbort: "Mise à jour annulée.",
+    updFail: d => "✗ La mise à jour a échoué : " + d + "<br>Vous pouvez aussi télécharger l'APK depuis la page GitHub du projet.",
+    checking: "Recherche d'une mise à jour…", nSaves: n => n ? n + " sauvegarde(s) sur cet appareil." : "Aucune sauvegarde sur cet appareil.",
     controlsIntro: "Choisissez une action puis appuyez sur le bouton de la manette à lui attribuer. Un bouton déjà utilisé dans le même contexte est échangé.",
     resetBinds: "Rétablir les commandes par défaut", fixed: "Non modifiable",
     fixedText: "La croix et le stick gauche servent à piloter (et à passer d'un bouton à l'autre dans les menus). Le stick droit affiche le curseur. Dans ce lanceur, A choisit et B revient.",
@@ -205,6 +226,7 @@ const TX = {
       quality: ["Qualité graphique", "Ignorée en mode haute qualité. Baissez-la si le jeu ralentit.", [["high", "Haute"], ["medium", "Moyenne"], ["low", "Basse"]]],
       volume: ["Volume", "", [["100", "100 %"], ["75", "75 %"], ["50", "50 %"], ["25", "25 %"], ["0", "Muet"]]],
       stick: ["Sensibilité du stick (pilotage)", "Basse : il faut pousser plus loin.", [["normal", "Normale"], ["low", "Basse"], ["high", "Haute"]]],
+      autoUpdate: ["Vérifier au démarrage", "Cherche une nouvelle version sur GitHub à l'ouverture du lanceur.", [["1", "Activé"], ["0", "Désactivé"]]],
       autoLogin: ["Connexion automatique aux sauvegardes", "Remplit et valide l'écran de connexion.", [["1", "Activée"], ["0", "Désactivée"]]],
       touchMode: ["Affichage du tactile", "Auto : masqué dès qu'une manette est utilisée.", [["auto", "Auto"], ["on", "Toujours"], ["off", "Jamais"]]],
       scale: ["Taille générale", "", [["0.8", "80 %"], ["0.9", "90 %"], ["1", "100 %"], ["1.15", "115 %"], ["1.3", "130 %"], ["1.5", "150 %"]]],
@@ -225,7 +247,17 @@ const TX = {
       <h3>Option 2 — from a file</h3><p>Copy the file to the device, choose <b>Import a file</b> and select it. Once validated, choose <b>Play</b>.</p>`,
     md5: "Expected fingerprint:", gameOk: "Game file: <span class='ok'>✓ imported and verified</span>", gameNo: "Game file: <span class='bad'>not imported</span>",
     saves: "Saves", clearSaves: "Delete saves", removeGame: "Remove the imported game file",
-    removeGameD: "You will need to import it again to play.", nSaves: n => n ? n + " save(s) on this device." : "No saves on this device.",
+    removeGameD: "You will need to import it again to play.",
+    updates: "Updates", checkUpdate: "Check for updates", verNow: v => "Installed version: " + v,
+    updTitle: "Update available", updVer: (a, b) => `Version ${b} is available (you have ${a}).`,
+    updYes: "Update", updLater: "Later", updSkip: "Skip this version",
+    updNone: v => `✓ DrillPod is up to date (version ${v}).`, updErr: d => "✗ Unable to check for updates: " + d,
+    updDl: p => p >= 0 ? `Downloading the update… ${p} %` : "Downloading the update…",
+    updInstall: "Verified. Confirm the installation in Android's window.",
+    updPerm: "Allow DrillPod to install apps, then come back: the installation will resume by itself.",
+    updOk: "✓ Update installed.", updAbort: "Update cancelled.",
+    updFail: d => "✗ The update failed: " + d + "<br>You can also download the APK from the project's GitHub page.",
+    checking: "Checking for updates…", nSaves: n => n ? n + " save(s) on this device." : "No saves on this device.",
     controlsIntro: "Pick an action, then press the gamepad button to assign to it. A button already used in the same context is swapped.",
     resetBinds: "Restore default controls", fixed: "Not changeable",
     fixedText: "The d-pad and left stick drive the pod (and jump between buttons in menus). The right stick shows the cursor. In this launcher, A selects and B goes back.",
@@ -251,6 +283,7 @@ const TX = {
       quality: ["Graphics quality", "Ignored in high-quality mode. Lower it if the game slows down.", [["high", "High"], ["medium", "Medium"], ["low", "Low"]]],
       volume: ["Volume", "", [["100", "100 %"], ["75", "75 %"], ["50", "50 %"], ["25", "25 %"], ["0", "Mute"]]],
       stick: ["Stick sensitivity (driving)", "Low: push further.", [["normal", "Normal"], ["low", "Low"], ["high", "High"]]],
+      autoUpdate: ["Check at startup", "Looks for a new version on GitHub when the launcher opens.", [["1", "On"], ["0", "Off"]]],
       autoLogin: ["Automatic save login", "Fills in and confirms the login screen.", [["1", "On"], ["0", "Off"]]],
       touchMode: ["Show touch controls", "Auto: hidden as soon as a gamepad is used.", [["auto", "Auto"], ["on", "Always"], ["off", "Never"]]],
       scale: ["Overall size", "", [["0.8", "80 %"], ["0.9", "90 %"], ["1", "100 %"], ["1.15", "115 %"], ["1.3", "130 %"], ["1.5", "150 %"]]],
@@ -277,6 +310,7 @@ const SETTINGS = [
   {k: "lang", def: "auto"}, {k: "mode", def: "etire"}, {k: "second", def: "1"}, {k: "hq", def: "0"}, {k: "quality", def: "high"},
   {k: "volume", def: "100"}, {k: "stick", def: "normal"}, {k: "autoLogin", def: "1"}
 ];
+const UPD_SETTING = {k: "autoUpdate", def: "1"};
 const TOUCH_SETTINGS = [
   {k: "touchMode", def: "auto"}, {k: "scale", lay: 1}, {k: "opacity", lay: 1},
   {k: "labels", lay: 1}, {k: "vibrate", def: "1"}
@@ -300,6 +334,8 @@ function renderAll(){
   ROWS = [];
   const add = (s) => { ROWS.push(s); return ROWS.length - 1; };
   $("settings").innerHTML = SETTINGS.map(s => rowHTML(s, add(s))).join("");
+  $("updSettings").innerHTML = rowHTML(UPD_SETTING, add(UPD_SETTING));
+  $("verInfo").textContent = T().verNow(NATIVE && NATIVE.appVersion ? NATIVE.appVersion() : "—");
   $("touchSettings").innerHTML = TOUCH_SETTINGS.map(s => rowHTML(s, add(s))).join("");
   $("touchShow").innerHTML = ML.TOUCH_IDS.map(k => { const s = {show: k}; return rowHTML(s, add(s), ML.touchName(k)); }).join("");
   const n = Object.keys(localStorage).filter(k => k.startsWith("ml.cloudsave.") && k !== "ml.cloudsave.__last").length;
@@ -409,7 +445,62 @@ function act(name){
   else if (name === "resetBinds") { ML.resetBindings(); renderAll(); setFocus(document.querySelector('[data-act="resetBinds"]')); }
   else if (name === "resetLayout") { ML.saveLayout(ML.defaultLayout()); renderAll(); setFocus(document.querySelector('[data-act="resetLayout"]')); }
   else if (name === "editLayout") openEditor();
+  else if (name === "checkUpdate") checkForUpdate(true);
 }
+/* ------------------------------------------------------------------ in-app updates */
+let upd = null;           // {info, sel}
+function mdToText(md){
+  // keep the section in the reader's language when the notes have one ("### Français" / "### English")
+  const fr = ML.lang() === "fr", i = md.search(fr ? /^#+\s*Fran[cç]ais/m : /^#+\s*English/m);
+  let t = i >= 0 ? md.slice(i).replace(/^#+[^\n]*\n/, "") : md.split(/\n-{3,}\n/)[0];
+  t = t.replace(/\*\*SHA-256[\s\S]*$/, "").replace(/^#+\s*/gm, "").replace(/\*\*|__|`/g, "").replace(/^>\s?/gm, "")
+       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1$2").replace(/\n{3,}/g, "\n\n");
+  return t.trim();
+}
+window.onUpdateInfo = function(info){
+  $("busy").classList.remove("on");
+  if (info.status === "available") {
+    if (!info.manual && store.get("skipVersion", "") === info.latest) return;
+    upd = {info, back: document.querySelector(".focus")};
+    $("updTitle").textContent = T().updTitle;
+    $("updVer").textContent = T().updVer(info.current, info.latest);
+    $("updNotes").textContent = mdToText(info.notes || "");
+    $("updYes").textContent = T().updYes; $("updLater").textContent = T().updLater; $("updSkip").textContent = T().updSkip;
+    $("upd").classList.add("on"); updFocus("updYes");
+  } else if (info.manual) {
+    showPanel("home");
+    message(info.status === "none" ? T().updNone(info.current) : T().updErr(info.detail || ""), info.status === "none" ? "good" : "err");
+  }
+};
+function updFocus(id){ ["updYes", "updLater", "updSkip"].forEach(b => $(b).classList.toggle("focus", b === id)); }
+function updClose(){ const u = upd; upd = null; $("upd").classList.remove("on"); updFocus(null); if (u && u.back) setFocus(u.back); }
+function updChoose(id){
+  const u = upd; if (!u) return;
+  if (id === "updSkip") { store.set("skipVersion", u.info.latest); updClose(); return; }
+  if (id === "updLater") { updClose(); return; }
+  updClose();
+  $("busyText").innerHTML = T().updDl(0) + '<div class="bar"><i id="updBar"></i></div>'; $("busy").classList.add("on");
+  NATIVE.installUpdate(u.info.url, u.info.sha);
+}
+["updYes", "updLater", "updSkip"].forEach(b => $(b).onclick = () => updChoose(b));
+window.onUpdateProgress = function(p, installing){
+  if (installing) { $("busy").classList.remove("on"); showPanel("home"); message(T().updInstall); return; }
+  $("busyText").firstChild.textContent = T().updDl(p);
+  const bar = $("updBar"); if (bar && p >= 0) bar.style.width = p + "%";
+};
+window.onUpdateNeedsPermission = function(){ $("busy").classList.remove("on"); showPanel("home"); message(T().updPerm); };
+window.onUpdateDone = function(ok, detail){
+  $("busy").classList.remove("on"); showPanel("home");
+  if (ok) message(T().updOk, "good");
+  else if (detail === "aborted") message(T().updAbort);
+  else message(T().updFail(detail || ""), "err");
+};
+function checkForUpdate(manual){
+  if (!NATIVE || !NATIVE.checkUpdate) { if (manual) message(T().onlyAndroid); return; }
+  if (manual) { $("busyText").textContent = T().checking; $("busy").classList.add("on"); }
+  NATIVE.checkUpdate(!!manual);
+}
+
 let panel = "home";
 function showPanel(p){
   panel = p;
@@ -487,6 +578,7 @@ function back(){
   return false;
 }
 window.onBack = () => {
+  if (upd) { updClose(); return true; }
   if (capturing) { endCapture(); return true; }
   if (ed) { closeEditor(); return true; }
   if (modal) { closeModal(false); return true; }
@@ -501,6 +593,13 @@ function onButton(name, down){
     return;
   }
   if (ed) { if (name === "B" || name === "START") closeEditor(); return; }
+  if (upd) {
+    const ids = ["updYes", "updLater", "updSkip"], cur = ids.find(b => $(b).classList.contains("focus")) || ids[0];
+    if (name === "LEFT" || name === "RIGHT" || name === "UP" || name === "DOWN") updFocus(ids[(ids.indexOf(cur) + (name === "LEFT" || name === "UP" ? 2 : 1)) % 3]);
+    else if (name === "A") updChoose(cur);
+    else if (name === "B") updClose();
+    return;
+  }
   if (modal) {
     if (name === "LEFT" || name === "RIGHT") { const y = $("mYes").classList.contains("focus"); $("mYes").classList.toggle("focus", !y); $("mNo").classList.toggle("focus", y); }
     else if (name === "A") closeModal($("mYes").classList.contains("focus"));
@@ -559,6 +658,8 @@ fetch("LICENSE_MIT").then(r => r.ok ? r.text() : "").then(t => $("licMit").textC
 fetch("LICENSE_APACHE").then(r => r.ok ? r.text() : "").then(t => $("licApache").textContent = t || "Apache License 2.0").catch(() => {});
 
 applyTexts();
+// once per app start: look for a new version on GitHub
+if (NATIVE && NATIVE.shouldAutoCheck && store.get("autoUpdate", "1") !== "0" && NATIVE.shouldAutoCheck()) setTimeout(() => checkForUpdate(false), 1200);
 setFocus(document.querySelector(installed ? '[data-act="play"]' : '[data-act="download"]'));
 </script>
 </body>

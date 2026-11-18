@@ -248,12 +248,27 @@ public class MainActivity extends Activity {
         web.onResume();
         hideSystemUi();
         updateSecondScreen();
+        if (pendingUpdate != null && canInstallPackages()) installPendingUpdate();   // back from the "install apps" setting
     }
 
     // ---------- Virtual mouse: real input events injected into the WebView ----------
     // The game (Ruffle) ignores synthetic DOM mouse events on some devices, so the cursor
     // drives it with genuine Android events: a mouse hover to move, a finger tap to click.
     class PadBridge {
+        @JavascriptInterface public String appVersion() { return currentVersion(); }
+        @JavascriptInterface public boolean shouldAutoCheck() { boolean first = !autoChecked; autoChecked = true; return first; }
+        @JavascriptInterface public void checkUpdate(final boolean manual) {
+            new Thread(new Runnable() { public void run() { doCheckUpdate(manual); } }).start();
+        }
+        @JavascriptInterface public void installUpdate(final String url, final String sha) {
+            new Thread(new Runnable() { public void run() { doDownloadUpdate(url, sha); } }).start();
+        }
+        @JavascriptInterface public void openUrl(final String url) {
+            web.post(new Runnable() { public void run() {
+                if (!url.startsWith("https://github.com/")) return;
+                try { startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))); } catch (Exception ignored) { }
+            } });
+        }
         @JavascriptInterface public void page(final String name) {
             web.post(new Runnable() { public void run() { inGame = "game".equals(name); updateSecondScreen(); } });
         }
@@ -451,6 +466,135 @@ public class MainActivity extends Activity {
         });
     }
     private long lastBack = 0;
+
+    // ---------- In-app updates (GitHub Releases of this project) ----------
+    static final String UPDATE_API = "https://api.github.com/repos/AliasGprime/drillpod/releases/latest";
+    static boolean autoChecked = false;
+    private java.io.File pendingUpdate;          // downloaded + verified, waiting for the "install apps" permission
+
+    String currentVersion() {
+        try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return "0"; }
+    }
+
+    /** true if version a is newer than b ("1.10" > "1.9"). */
+    static boolean newer(String a, String b) {
+        String[] x = a.replaceAll("[^0-9.]", "").split("\\."), y = b.replaceAll("[^0-9.]", "").split("\\.");
+        for (int i = 0; i < Math.max(x.length, y.length); i++) {
+            int p = i < x.length && !x[i].isEmpty() ? Integer.parseInt(x[i]) : 0, q = i < y.length && !y[i].isEmpty() ? Integer.parseInt(y[i]) : 0;
+            if (p != q) return p > q;
+        }
+        return false;
+    }
+
+    private void jsUi(final String code) { web.post(new Runnable() { public void run() { web.evaluateJavascript(code, null); } }); }
+
+    private void doCheckUpdate(boolean manual) {
+        org.json.JSONObject r = new org.json.JSONObject();
+        try {
+            r.put("manual", manual);
+            java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(UPDATE_API).openConnection();
+            c.setConnectTimeout(10000); c.setReadTimeout(15000);
+            c.setRequestProperty("Accept", "application/vnd.github+json");
+            c.setRequestProperty("User-Agent", "DrillPod-updater");
+            int code = c.getResponseCode();
+            if (code != 200) throw new Exception("GitHub " + code);
+            org.json.JSONObject rel = new org.json.JSONObject(new String(readAll(c.getInputStream()), "UTF-8"));
+            c.disconnect();
+            String latest = rel.optString("tag_name", "").replaceFirst("^v", ""), current = currentVersion();
+            String body = rel.optString("body", "");
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("SHA-256 \\(DrillPod\\.apk\\):\\*\\* `([0-9a-f]{64})`").matcher(body);
+            String url = null; long size = 0;
+            org.json.JSONArray assets = rel.optJSONArray("assets");
+            for (int i = 0; assets != null && i < assets.length(); i++) {
+                org.json.JSONObject a = assets.getJSONObject(i);
+                if (a.optString("name").endsWith(".apk")) { url = a.optString("browser_download_url"); size = a.optLong("size"); }
+            }
+            r.put("current", current).put("latest", latest).put("notes", body).put("page", rel.optString("html_url"))
+             .put("url", url == null ? "" : url).put("size", size).put("sha", m.find() ? m.group(1) : "");
+            r.put("status", newer(latest, current) && url != null ? "available" : "none");
+        } catch (Throwable t) {
+            try { r.put("status", "error").put("detail", String.valueOf(t.getMessage())); } catch (Exception ignored) { }
+        }
+        jsUi("window.onUpdateInfo&&onUpdateInfo(" + r.toString() + ")");
+    }
+
+    private void doDownloadUpdate(String url, String sha) {
+        try {
+            if (!url.startsWith("https://github.com/AliasGprime/drillpod/releases/download/")) throw new Exception("unexpected address");
+            if (!sha.matches("[0-9a-f]{64}")) throw new Exception("no SHA-256 in the release notes");
+            String u = url; java.net.HttpURLConnection c = null;
+            for (int hop = 0; hop < 6; hop++) {                       // GitHub redirects to its download servers
+                c = (java.net.HttpURLConnection) new java.net.URL(u).openConnection();
+                c.setInstanceFollowRedirects(false); c.setConnectTimeout(15000); c.setReadTimeout(30000);
+                c.setRequestProperty("User-Agent", "DrillPod-updater");
+                int code = c.getResponseCode();
+                if (code >= 300 && code < 400 && c.getHeaderField("Location") != null) { u = new java.net.URL(new java.net.URL(u), c.getHeaderField("Location")).toString(); c.disconnect(); continue; }
+                if (code != 200) throw new Exception("HTTP " + code);
+                break;
+            }
+            long total = c.getContentLength();
+            java.io.File f = new java.io.File(getCacheDir(), "update.apk");
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            InputStream in = c.getInputStream(); java.io.FileOutputStream out = new java.io.FileOutputStream(f);
+            byte[] buf = new byte[65536]; long got = 0; int n, lastPct = -1;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n); md.update(buf, 0, n); got += n;
+                int pct = total > 0 ? (int) (got * 100 / total) : -1;
+                if (pct != lastPct) { lastPct = pct; jsUi("window.onUpdateProgress&&onUpdateProgress(" + pct + ")"); }
+            }
+            out.close(); in.close(); c.disconnect();
+            StringBuilder hex = new StringBuilder(); for (byte b : md.digest()) hex.append(String.format("%02x", b));
+            if (!hex.toString().equals(sha)) { f.delete(); throw new Exception("SHA-256 mismatch"); }
+            pendingUpdate = f;
+            web.post(new Runnable() { public void run() { installPendingUpdate(); } });
+        } catch (Throwable t) {
+            jsUi("window.onUpdateDone&&onUpdateDone(false," + org.json.JSONObject.quote(String.valueOf(t.getMessage())) + ")");
+        }
+    }
+
+    private boolean canInstallPackages() {
+        if (android.os.Build.VERSION.SDK_INT < 26) return true;
+        try { return (Boolean) getPackageManager().getClass().getMethod("canRequestPackageInstalls").invoke(getPackageManager()); }
+        catch (Exception e) { return true; }
+    }
+
+    /** Hands the verified APK to Android's installer (Android then asks the user to confirm). */
+    void installPendingUpdate() {
+        java.io.File f = pendingUpdate; if (f == null || !f.isFile()) return;
+        if (!canInstallPackages()) {
+            jsUi("window.onUpdateNeedsPermission&&onUpdateNeedsPermission()");
+            try {
+                startActivity(new android.content.Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",
+                        android.net.Uri.parse("package:" + getPackageName())));
+            } catch (Exception e) { jsUi("window.onUpdateDone&&onUpdateDone(false,'permission')"); }
+            return;                                                    // resumed in onResume()
+        }
+        pendingUpdate = null;
+        try {
+            android.content.pm.PackageInstaller pi = getPackageManager().getPackageInstaller();
+            android.content.pm.PackageInstaller.SessionParams params =
+                    new android.content.pm.PackageInstaller.SessionParams(android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+            int id = pi.createSession(params);
+            android.content.pm.PackageInstaller.Session session = pi.openSession(id);
+            java.io.OutputStream out = session.openWrite("DrillPod.apk", 0, f.length());
+            java.io.FileInputStream in = new java.io.FileInputStream(f);
+            byte[] buf = new byte[65536]; int n; while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            in.close(); session.fsync(out); out.close();
+            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT | (android.os.Build.VERSION.SDK_INT >= 31 ? 0x02000000 /* FLAG_MUTABLE */ : 0);
+            android.app.PendingIntent pend = android.app.PendingIntent.getBroadcast(this, id,
+                    new android.content.Intent(this, UpdateReceiver.class), flags);
+            session.commit(pend.getIntentSender());
+            session.close();
+            jsUi("window.onUpdateProgress&&onUpdateProgress(100, true)");
+        } catch (Throwable t) {
+            jsUi("window.onUpdateDone&&onUpdateDone(false," + org.json.JSONObject.quote(String.valueOf(t.getMessage())) + ")");
+        }
+    }
+
+    static void updateFinished(final boolean ok, final String msg) {
+        final MainActivity m = instance; if (m == null) return;
+        m.jsUi("window.onUpdateDone&&onUpdateDone(" + ok + "," + org.json.JSONObject.quote(msg) + ")");
+    }
 
     // ---------- Importing the user's game file ----------
     static final String GAME_MD5 = "42469867aa46129edbab37894c344cb4";

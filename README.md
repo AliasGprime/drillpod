@@ -67,6 +67,11 @@ DrillPod is built specifically for **Motherload**, the classic Flash mining game
 - Rendering at the screen's full resolution.
 - Optional **high-quality mode**: 1.5× supersampling, best Flash quality, and smoothing of textures that looked blocky when scaled up.
 
+### Updates
+- When the launcher opens, DrillPod checks this project's [Releases](../../releases) and offers a new version if there is one (*Update*, *Later*, *Skip this version*).
+- The APK's **SHA-256 is verified** against the release notes, then installed through **Android's own installer** (which asks for confirmation and only accepts an update signed with the same key).
+- Can be turned off in *Settings → Updates*, which also has a manual *Check for updates*.
+
 ### Saves
 - The game used to save to an online server that no longer exists. DrillPod **answers those requests locally**: games are kept on the device.
 - **Automatic login** on the save / load screen: one press of A at the save bot, and one on the title screen to load.
@@ -120,6 +125,7 @@ Everything can be changed in **Launcher → Controls**. Pressing Android's Back 
 | Volume | 100 % to mute |
 | Stick sensitivity | Normal, low or high |
 | Automatic save login | Fills in and confirms the save login screen |
+| Check at startup | Looks for a new version on GitHub when the launcher opens |
 | Touch controls | Visibility, size, opacity, labels, vibration, visible elements, layout |
 
 ---
